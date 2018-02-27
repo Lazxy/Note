@@ -1,0 +1,24 @@
+初始命令：git config --global user.name/user.email values //设置发布者名称或邮箱
+到项目文件夹底部 输入git init //创建一个空的git代码仓库
+输入 ls -al //查看该项目的所有git操作
+输入 git add file/document/. //将文件或文件夹添加进欲提交内容里 “.”为全部添加
+输入 git commit -m note //提交已添加的内容，并对此次提交行为提供注释
+在项目根目录 输入 touch .gitignore //创建名为.gitignore的文本文件
+编辑该文本文件 如输入 /bin （/r/n） /gen 则用git .命令提交全部文件时，它会按行读取.gitignore中的数据，并忽略其注明的文件夹
+输入 git status //可以查看提交代码后 原代码文件是否遭到修改
+输入 git diff //可以看到所有文件的修改内容 若要看单个文件的修改内容，可以在其后加上绝对文件路径
+输入 git reset HEAD （absolute path）//可以取消该绝对路径下文件的add 
+输入 git checkout //可以撤销未被add的文件修改 后加修改文件的绝对路径
+输入 git log //可以查看提交记录 后加提交ID -l可查看单条记录 再加-p可查看修改的内容
+输入 git branch （分支名）//可以开辟分支 用于对原有版本的维护和修改
+输入 git branch -a//可以查看现有分支
+输入 git checkout （分支名）//可以从当前分支跳到新分支
+输入 git merge （分支名）//可以合并该版本修改信息
+输入 git branch -D (分支名)//可以删除该分支
+输入 git clone （远程版本库地址） //可以从远程版本库获得代码
+输入 git push origin （分支名）// 可以将修改过的远程版本库获得的代码上传至远程代码库指定分支
+输入 git fetch origin（分支名）//可以同步远程版本库的代码 存储于名为origin/（分支名）的分支上
+输入 git pull origin（分支名）//可以同步远程版本库的代码并且与本地分支合并
+git rm -r [文件名] //删除所选文件
+
+/*以上所有修改远程代码的操作都需要commit并push后才生效*/

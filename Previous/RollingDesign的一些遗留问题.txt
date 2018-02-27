@@ -1,0 +1,18 @@
+普通连接：
+	5.0 TLSv1.2 TLSv1.1 TLSv1	
+	4.3 4.4 TLSv1
+WebView ：
+	5.0以上：正常get和post
+	4.4：只能获得登陆界面，无法将信息post出去
+	4.3：无法登陆界面
+没有对文字中的链接进行管控，造成误操作打开外部浏览器。
+问题解决：自定义一个WebViewActivity，配置其intent-filter如下：
+<intent-filter>
+      <action android:name="android.intent.action.VIEW"/>
+      <category android:name="android.intent.category.DEFAULT"/>
+      <data android:scheme="http"/>
+      <data android:scheme="https"/
+</intent-filter>
+如此可以拦截点击链接文字的浏览器打开行为，后续实际打开的应用由用户决定。
+
+UI优化。

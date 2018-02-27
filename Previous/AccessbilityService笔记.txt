@@ -1,0 +1,52 @@
+首先，Application的Manifest文件中应声明权限和Service：
+<service android:name=".MyAccessibilityService"
+        android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+        android:label="@string/accessibility_service_label">
+      <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+      </intent-filter>
+</service>
+然后要配置AccessibilityService的Configuration，可以通过AccessibilityServiceInfo类配置各项参数，然后用setServiceInfo（）函数设置，也可以在4.0以后的版本中用meta-data标签导入资源文件，进行全局配置，其具体文件和写法如下:
+//Manifest中 
+<meta-data
+    android:name="android.accessibilityservice"
+    android:resource="@xml/accessibility_service_config" />
+//具体的资源文件
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android" //注意此处的accessibility-service会在meta-data中写为android.accessibilityservice，错误的话会导致该文件不产生作用。
+    android:description="@string/accessibility_service_description"//对该service目的及行为的简短描述
+    android:packageNames="com.example.android.apis"//设定向哪个package接收事件，如果省略，则可以接收任何Application的事件
+    android:accessibilityEventTypes="typeAllMask"//设定接收的事件类型，这里是所有事件类型。监听消息可以用typeNotificationStateChanged
+    android:accessibilityFlags="flagDefault"//作为Service标识
+    android:accessibilityFeedbackType="feedbackSpoken"//设定反馈方式，可以通过视、听、触觉进行反馈。当一个事件被多个不同的Service接收时，如果反馈不同，该事件会同时分发到多个Service，否则其会优先分配给第一个注册的Service。
+    android:notificationTimeout="100"//两个同类型的事件发送向Service的最短时间间隔，以毫秒为单位
+    android:canRetrieveWindowContent="true"//指定是否允许检索窗口内容
+    android:settingsActivity="com.example.android.accessibility.ServiceSettingsActivity"//设定允许更改此设置的Activity
+/>
+在继承了AccessibilityService的类中，除了必须实现的onAccessibilityEvent()和onInterrupt()之外，还有可以重写的两个函数为onServiceConnected()和onUnbind()。这四个函数分别响应于监听的事件发生、对应事件处理被打断、服务绑定成功和服务解绑时，后两者都是一次性调用的函数，可以用来绑定或者解放一些资源。
+在onAccessibilityEvent()中，可以通过AccessibilityEvent对象调用几个函数，包括：getRecordCount()和getRecord(int)，用于获得AccessibilityRecord对象的集合；getResource()可以获得触发事件界面的View信息（只有当前控件的信息），其返回的的AccessibilityNodeInfo对象可以用于获得控件对象,或者直接已该对象调用performAction()或者Service调用performGlobalAction（）函数，就可以实现一些滑动、点击、按动返回键等动作。
+除了event.getResource()函数之外，还可以用getRootInActiveWindow（）来获取当前窗口的整个页面，注意是当前窗口。因为当点击事件触发后会改变当前窗口时，由于UI绘制线程和服务线程的先后顺序不同（如果是一个AlertDialog一定会是服务线程先，如果是一个悬浮窗口的话可能会是其先出现），可能会导致取得的NodeInfo里并没有预计的View存在，此时就可以通过Thread.sleep()保证UI线程能够先执行完毕。以及还有当监听了Dialog类的Button的时候，如果窗口在获取NodeInfo操作之后关闭了，可能会出现相关的空指针异常，故需要在后面增加判断程序。
+//当选择的TYPE是跟WINDOW相关的类型时，event.getClassName()获得的Class名是WINDOW变化前的Class，而事实上得到的AccessibilityNodeInfo是WINDOW变化后的View和包名。
+//当选择的TYPE是TYPE_VIEW_CLICKED时，event.getClassName()获得的Class名是被点击的View，其得到的NodeInfo是点击后出现的窗口——如AlertDialog或者Menu，但当点击不出现框体控//件时，其得到的NodeInfo依然是点击时的View？？？= = Debug和实际运行结果不同 。很迷 貌似弹出窗口的线程时序和该服务接收到event的时序并不一样，有时快有时慢。
+用adb shell dumpsys activity activities可以查看当前运行的包和活动（mFocusedActivity后面）
+一些记录：
+应用桌面卸载时的包和activity名——com.android.packageinstaller/.UninstallerActivity
+设置中卸载应用时的包和activity名——com.android.packageinstaller/.UninstallerActivity
+QQ红包的包名和Activity名——com.tencent.mobileqq/.activity.SplashActivity --具体的可点击控件是android.widget.AbsListView中的RelativeLayout 
+只有WindowStateChanged的响应事件event对象才能通过getClassName()得到当前类的具体类名。（或者WindowsChanged也行？）
+简单的EditText框文本操作
+//                    移动光标到最后一个单词，然后插入一段文本,单词的分隔判定大概是通过空格
+//                    Bundle arguments = new Bundle();
+//                    arguments.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
+//                            AccessibilityNodeInfo.MOVEMENT_GRANULARITY_WORD);
+//                    arguments.putBoolean(AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN, false);
+//                    nodeInfo.performAction(AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY, arguments);
+//                    nodeInfo.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+//                    ClipData clip = ClipData.newPlainText("label", "Li was here");
+//                    ClipboardManager clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+//                    clipboardManager.setPrimaryClip(clip);
+//                    nodeInfo.performAction(AccessibilityNodeInfo.ACTI
+//万恶之源
+Taking Action for Users
+Starting with Android 4.0 (API Level 14), accessibility services can act on behalf of users, including changing the input focus and selecting (activating) user interface elements. In Android 4.1 (API Level 16) the range of actions has been expanded to include scrolling lists and interacting with text fields. Accessibility services can also take global actions, such as navigating to the Home screen, pressing the Back button, opening the notifications screen and recent applications list. Android 4.1 also includes a new type of focus, Accessibilty Focus, which makes all visible elements selectable by an accessibility service.
+
+These new capabilities make it possible for developers of accessibility services to create alternative navigation modes such as gesture navigation, and give users with disabilities improved control of their Android devices.

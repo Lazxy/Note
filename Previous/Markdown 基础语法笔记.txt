@@ -1,0 +1,35 @@
+一、标题
+示例： ### title //#号的多少表示了标题的大小，从h1到h6分别为#到######
+
+二、列表
+示例： - item  /  * item  或者 1. item  2. item   //前者为无序列表，后者为有序列表
+
+三、引用
+示例： > reference 
+
+四、图片与链接
+示例： [Baidu](https://baidu.com)   ![icon](http://picture.com/icon.png)
+
+五、粗体与斜体
+实例： **bold**  *italic*/_italic_
+
+六、表格
+示例：//总之就是用竖线表示分隔
+| Tables        | Are           | Cool  |
+
+| ------------- |:-------------:| -----:|
+
+| col 3 is      | right-aligned | $1600 |
+
+| col 2 is      | centered      |   $12 |
+
+| zebra stripes | are neat      |    $1 |
+
+七、代码框
+示例： 'android：layout_height="wrap_content" '
+
+八、分隔线
+示例：***/___
+
+九、复选框
+示例：- [ ] item / - [x] item 后者表示选中
