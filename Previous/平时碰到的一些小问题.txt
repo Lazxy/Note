@@ -1,3 +1,0 @@
-关于自定义View的Dialog：
-当不设置Window宽度并且View布局中有wrap_content的直接子控件存在时，window的大小会按照那个控件的大小来。
-当布局中存在EditText时，要注意EditText由于hint过长造成的空间占据下移，可能会对其下的布局或控件造成挤压变形（高度值不确定时）或遮盖（高度确定时）。
