@@ -485,7 +485,7 @@ public class IndexInterceptor extends HandlerInterceptorAdapter {
 
 更具体的属性可以看[官方文档](http://www.mybatis.org/mybatis-3/zh/configuration.html)。
 
-省略数据库映射对象类文件，就是一个简单的Bean，然后我们可以看看SQL是怎么写在xml里的：
+省略数据库映射对象类文件，就是一个简单的Bean（*当然其成员属性名与数据库的列名要一致，或者说，和数据库返回的结果表列名一致*），然后我们可以看看SQL是怎么写在xml里的：
 
 ```xml
 <!--pojo/Category.xml-->
@@ -519,9 +519,459 @@ public class Test{
         for (Category c : cs) {
             System.out.println(c.getName());
         }
+      	//如果对数据库的操作有修改的内容，则需要加上session.commit提交修改
+      	session.close();//关闭连接
     }
 }
 
 ```
 
 就形式上的确没什么好说的，和之前的其他框架基本大同小异。
+
+#### 二、CRUD
+
+​	有了上面的铺垫，增删改查代码其实也很简单，无非就是在xml里配置完对应的语句，然后由SqlSession对象调用罢了，下面直接给出所有代码：
+
+```xml
+<!--Category.xml-->
+<mapper namespace="pojo">
+  	<!--通过各自的标签声明语句的功能-->
+    <insert id="addCategory" parameterType="Category" >
+        insert into category_ ( name ) values (#{name})
+    </insert>
+
+    <delete id="deleteCategory" parameterType="Category" >
+        delete from category_ where name= #{name}
+    </delete>
+
+    <!--这里三个参数分别声明SQL语句代号、参数类型与参数返回值类型-->
+    <select id="getCategory" parameterType="string" resultType="Category">
+        select * from   category_  where name= #{name}
+    </select>
+
+    <update id="updateCategory" parameterType="Category" >
+        update category_ set name=#{name} where id=#{id}
+    </update>
+    <select id="listCategory" resultType="Category">
+        select * from   category_
+    </select>
+</mapper>
+
+```
+
+```java
+public static void addCategory(SqlSession session, int id,String name){
+    Category c = new Category();
+    if(id > 0)
+        c.setId(id);
+    c.setName(name);
+    session.insert("addCategory",c);
+}
+
+public static void deleteCategory(SqlSession session, String name){
+    Category c = new Category();
+    c.setName(name);
+    session.delete("deleteCategory",c);
+}
+
+public static void getCategory(SqlSession session, String name){
+  	//这里得到的值是一个泛型类型，可以被任意强转
+    System.out.println(((Category)session.selectOne("getCategory",name)).getId());
+}
+
+public static void updateCategory(SqlSession session, int id,String name){
+    Category c = new Category();
+    c.setId(id);
+    c.setName(name);
+    session.update("updateCategory",c);
+}
+
+public static void listCategory(SqlSession session){
+    List<Category> cs=session.selectList("listCategory");
+    for (Category c : cs) {
+        System.out.println(c.getName());
+    }
+}
+```
+
+这里有一点要声明的是，xml中的parameterType这个属性，对于基本类型和类类型的识别根据版本不同而不同，有时基本数据类型需要在加上前缀下划线，如上面的`_int`，有时候引用类型需要写下完全限定名，如`java.lang.String` 。当然也可以用设置别名的方式进行省略，如：
+
+```xml
+<typeAlias type="com.someapp.model.User" alias="User"/>
+```
+
+另外，如果数据库语句执行有误，如删除一个不存在的元组，也不会在结果上出现什么异常。
+
+#### 三、一对多关系
+
+​	从这里开始SQl的查询就涉及到了多表连接和查询了，其实现重点是**resultMap**的声明，上代码：
+
+```xml
+<!--Category.xml-->
+<mapper namespace="pojo">
+  	<!--这里的返回类型仍然是Category，但resultMap指示了如何对其Product成员变量进行初始化-->
+    <resultMap type="Category" id="categoryBean">
+      	<!--这里的id是表的标识，表明其下的属性和该列来自同一张表，以此避免了同名列的混淆，并提升了性能-->
+        <id column="cid" property="id" /> 
+      	<!--column表示SQl表（或结果的虚表）中的列名，property表示对应的bean属性名-->
+        <result column="cname" property="name" />
+
+        <!-- 一对多的关系 -->
+        <!-- property: 指的是集合属性的值, ofType：指的是集合中元素的类型 -->
+        <collection property="products" ofType="Product">
+            <id column="pid" property="id" />
+            <result column="pname" property="name" />
+            <result column="price" property="price" />
+        </collection>
+    </resultMap>
+
+    <!-- 关联查询分类和产品表 这里用resultMap替换了resultType，此两者不能同时出现-->
+    <select id="listCategory" resultMap="categoryBean">
+        select c.*, p.*, c.id 'cid', p.id 'pid', c.name 'cname', p.name 'pname' from category_ c left join product_ p on c.id = p.cid
+    </select>
+</mapper>
+```
+
+简单来说，resultMap就是以xml声明了对复杂查询结果的处理，指示如何将这些字段注入相对应的类对象中去，其也是MyBatis的核心，更详细的属性信息可见[官方文档](http://www.mybatis.org/mybatis-3/zh/sqlmap-xml.html)。另外附上Java代码：
+
+```java
+//pojo/Category.java
+public class Category{
+	//...
+	List<Product> products; //添加对Product类的引用
+	//..
+	public List<Product> getProducts() {
+        return products;
+    }
+    public void setProducts(List<Product> products) {
+        this.products = products;
+    }
+}
+
+//Test
+public static void listCategory(SqlSession session){
+    List<Category> cs=session.selectList("listCategory");
+    for (Category c : cs) {
+        System.out.println(c);
+        List<Product> ps = c.getProducts(); //与之前只得到了Category集合不同，这次其持有的Product也得到了初始化
+        for (Product p : ps) {
+            System.out.println("\t"+p);
+        }
+    }
+}
+```
+
+#### 四、多对一关系
+
+​	依照上面的例子，多对一关系实际就是从Category为主体转换成了以Product为主体，其配置和上面类似，只是把collection换成了association：
+
+```xml
+<!--Product.xml-->
+<mapper namespace="pojo">
+    <resultMap type="Product" id="productBean">
+        <id column="pid" property="id" />
+        <result column="pname" property="name" />
+        <result column="price" property="price" />
+
+        <!-- 多对一的关系 -->
+        <!-- property: 指的是属性名称, javaType：指的是属性的类型 -->
+        <association property="category" javaType="Category">
+            <id column="cid" property="id"/>
+            <result column="cname" property="name"/>
+        </association>
+    </resultMap>
+
+    <!-- 根据id查询Product, 关联将Orders查询出来 -->
+    <select id="listProduct" resultMap="productBean">
+        select c.*, p.*, c.id 'cid', p.id 'pid', c.name 'cname', p.name 'pname' from category_ c left join product_ p on c.id = p.cid
+    </select>
+</mapper>
+```
+
+当然，与此相对的，Product.java中也增加了相应的Category属性，以及其getter、setter方法，不再赘述。
+
+####五、多对多关系
+
+​	这里给出的例子是：*一份订单包含多种产品，同时每种产品对应多份订单*，其实际上可以视作**对应项交叉的一对多情况**，此时需要给出一张额外表作为两个对象的中间关系声明，在代码上的体现即为Order（订单表）通过一对多关系查询OrderItem（订单关系表），然后OrderItem去多对一查询Product（产品表），代码如下：
+
+```xml
+<!--Order.xml-->
+<mapper namespace="pojo">
+    <resultMap type="Order" id="orderBean">
+        <id column="oid" property="id" />
+        <result column="code" property="code" />
+
+        <!--先获取OrderItem集合-->
+        <collection property="orderItems" ofType="OrderItem">
+            <id column="oiid" property="id" />
+            <result column="number" property="number" />
+            <!--再通过集合内的订单信息多对一地获取相应的产品信息-->
+            <association property="product" javaType="Product">
+                <id column="pid" property="id"/>
+                <result column="pname" property="name"/>
+                <result column="price" property="price"/>
+            </association>
+        </collection>
+    </resultMap>
+
+    <select id="listOrder" resultMap="orderBean">
+        select o.*,p.*,oi.*, o.id 'oid', p.id 'pid', oi.id 'oiid', p.name 'pname'
+        from order_ o
+        left join order_item_ oi    on o.id =oi.oid
+        left join product_ p on p.id = oi.pid
+    </select>
+
+    <select id="getOrder" resultMap="orderBean">
+        select o.*,p.*,oi.*, o.id 'oid', p.id 'pid', oi.id 'oiid', p.name 'pname'
+        from order_ o
+        left join order_item_ oi on o.id =oi.oid
+        left join product_ p on p.id = oi.pid
+        where o.id = #{id}
+    </select>
+</mapper>
+```
+
+#### 六、动态SQL
+
+1. **if**，在SQL语句标签内，可以通过\<if\>来声明SQL语句执行的条件，如：
+
+   ```xml
+   <select id="findActiveBlogWithTitleLike"
+        resultType="Blog">
+     SELECT * FROM BLOG 
+     WHERE state = ‘ACTIVE’ 
+     <if test="title != null"> <!--如果title不为空，则采取近似查询，否则忽略-->
+       AND title like #{title}
+     </if>
+   </select>
+   ```
+
+2. **choose、when、otherwise**，类似于switch，表示一个多选项判断：
+
+   ```xml
+   <select id="findActiveBlogLike"
+        resultType="Blog">
+     SELECT * FROM BLOG WHERE state = ‘ACTIVE’
+     <choose>
+       <when test="title != null">
+         AND title like #{title}
+       </when>
+       <when test="author != null and author.name != null">
+         AND author_name like #{author.name}
+       </when>
+       <otherwise>
+         AND featured = 1
+       </otherwise>
+     </choose>
+   </select>
+   ```
+
+3. **trim、where、set**，这几个标签的作用是避免上面的判断结果不符合SQL语法，比如多一个“，”或者“AND”等，示例如下：
+
+   ```xml
+   <select id="findActiveBlogLike" resultType="Blog">
+     SELECT * FROM BLOG 
+     <where> 
+       <if test="state != null">
+            state = #{state}
+       </if> 
+       <if test="title != null">
+           AND title like #{title}
+       </if>
+       <if test="author != null and author.name != null">
+           AND author_name like #{author.name}
+       </if>
+     </where>
+   </select>
+   ```
+
+   其等价为：
+
+   ```xml
+   <trim prefix="WHERE" prefixOverrides="AND |OR ">
+     ... 
+   </trim>
+   ```
+
+   即将\<where\>标签替换为WHERE，且去除AND与OR前缀（都包括空格），而\<set\>则会去除后缀的`,`，如：
+
+   ```xml
+   <update id="updateAuthorIfNecessary">
+     update Author
+       <set>
+         <if test="username != null">username=#{username},</if>
+         <if test="password != null">password=#{password},</if>
+         <if test="email != null">email=#{email},</if>
+         <if test="bio != null">bio=#{bio}</if>
+       </set>
+     where id=#{id}
+   </update>
+   ```
+
+4. **bind**，其功能相当于创建一个与入参相关的新变量，完成诸如拼接之类的工作：
+
+   ```xml
+   <select id="selectBlogsLike" resultType="Blog">
+     <bind name="pattern" value="'%' + _parameter.getTitle() + '%'" />
+     SELECT * FROM BLOG
+     WHERE title LIKE #{pattern}
+   </select>
+   ```
+
+#### 七、注解
+
+1. CRUD替换，这里主要是把原来类的同名xml文件以注解的形式体现在新的Java接口类上，如：
+
+   ```java
+   public interface CategoryMapper {
+
+       @Insert(" insert into category_ ( name ) values (#{name}) ")
+       public int add(Category category);
+
+       @Delete(" delete from category_ where name= #{name} ")
+       public void delete(int id);
+
+       @Select(" select * from   category_  where id= #{id} ")
+       public Category get(int id);
+
+       @Update(" update category_ set name=#{name} where id=#{id} ")
+       public int update(Category category);
+
+       @Select(" select * from category_ ")
+       public List<Category> list();
+   }
+   ```
+
+   然后再把这个mapper注册到配置文件中去：
+
+   ```xml
+   <!--mybatis-config.xml-->
+   <!--...-->
+   <mappers>
+       <!--...-->
+       <mapper class="mapper.CategoryMapper"/>
+   </mappers>
+   <!--...-->
+   ```
+
+   最后调用：
+
+   ```java
+   public static void main(String[] args) throws IOException {
+       String resource = "mybatis-config.xml";
+       InputStream inputStream = Resources.getResourceAsStream(resource);
+       SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+       SqlSession session=sqlSessionFactory.openSession();
+       CategoryMapper mapper = session.getMapper(CategoryMapper.class);
+       listCategory(mapper);
+       //...
+   }
+
+   //...
+
+   public static void listCategory(CategoryMapper mapper){
+       List<Category> cs=mapper.list(); //直接通过接口方法来进行SQL操作
+       for (Category c : cs) {
+           System.out.println(c);
+       }
+   }
+           
+   ```
+
+   就其声明方法和调用方法来说，它和Retrofit倒是比较相似，也基本保持了这一套框架的一贯特点。
+
+2. 一对多替换，这里用一个@Results注解代替了\<resultType\>标签，声明了自身属性对象以及与其他表连接的外键，外键匹配条件则写在另一个查询语句里，如下：
+
+   ```java
+   //CategoryMapper.java
+   //...
+   @Select(" select * from category_ ")
+   @Results({
+       //@Result(property = "id", column = "id") 这里已经不再需要用属性区别表了
+     	//这里的column = "id" 是外键声明，@Many的注解参数则为外键匹配条件查询语句的路径,javaType其实也可以省略
+       @Result(property = "products", javaType = List.class, column = "id",
+           many = @Many(select = "mapper.ProductMapper.listByCategory"))})
+   	public List<Category> list();
+
+   	//ProductMapper.java
+       public interface ProductMapper {
+           @Select(" select * from product_ where cid = #{cid}")
+           public List<Product> listByCategory(int cid);
+       }
+   ```
+
+3. 多对一替换，基本大同小异，区别在把上面的@Many换成了@One：
+
+   ```java
+   	@Select(" select * from product_ ")
+       @Results({
+               @Result(property = "category", column = "cid", one = @One(select = "mapper.CategoryMapper.get"))
+       })
+       public List<Product> listProduct();
+   ```
+
+4. 多对多替换，实际上就是一个一对多和一个多对一的组合，没有新的东西，这里代码就不贴了。
+
+5. 动态SQL替换，这里有点像Android的SQLite的用法，用函数+语句片段的方式调用SQL，然后再通过注解把函数引用送到要用的地方，如下：
+
+   ```java
+   //CategoryDynaSqlProvider.java
+   public class CategoryDynaSqlProvider {
+       public String list() {
+            return new SQL()
+                    .SELECT("*")
+                    .FROM("category_")
+                    .toString();
+            
+       }
+       public String get() {
+           return new SQL()
+                   .SELECT("*")
+                   .FROM("category_")
+                   .WHERE("id=#{id}")
+                   .toString();
+       }
+        
+       public String add(){
+           return new SQL()
+                   .INSERT_INTO("category_")
+                   .VALUES("name", "#{name}")
+                   .toString();
+       }
+       public String update(){
+           return new SQL()
+                   .UPDATE("category_")
+                   .SET("name=#{name}")
+                   .WHERE("id=#{id}")
+                   .toString();
+       }
+       public String delete(){
+           return new SQL()
+                   .DELETE_FROM("category_")
+                   .WHERE("id=#{id}")
+                   .toString();
+       }
+        
+   }
+
+   //CategoryMapper.java
+   public interface CategoryMapper {
+     
+       @InsertProvider(type=CategoryDynaSqlProvider.class,method="add") 
+       public int add(Category category); 
+           
+       @DeleteProvider(type=CategoryDynaSqlProvider.class,method="delete")
+       public void delete(int id); 
+           
+       @SelectProvider(type=CategoryDynaSqlProvider.class,method="get") 
+       public Category get(int id); 
+         
+       @UpdateProvider(type=CategoryDynaSqlProvider.class,method="update") 
+       public int update(Category category);  
+           
+       @SelectProvider(type=CategoryDynaSqlProvider.class,method="list")     
+       public List<Category> list(); 
+   }
+   ```
+
+   由于SQL语句实际上是几个函数片段拼凑而成的，故可以手动在Provider中进行逻辑流判断，然后返回最后的值。
