@@ -731,6 +731,20 @@ public static void listCategory(SqlSession session){
 </mapper>
 ```
 
+由于多表操作中无法避免地需要用到级联操作，而在一个标签内执行多条SQL语句时，需要在mybatis-config.xml文件中配置：
+
+```xml
+ <environments default="development">
+      <environment id="development">
+          <!--...-->
+              <property name="url" value="jdbc:mysql://localhost:3300/demo?characterEncoding=UTF-8&amp;allowMultiQueries=true"/>
+          <!--...-->
+      </environment>
+</environments>
+```
+
+
+
 #### 六、动态SQL
 
 1. **if**，在SQL语句标签内，可以通过\<if\>来声明SQL语句执行的条件，如：
@@ -975,3 +989,59 @@ public static void listCategory(SqlSession session){
    ```
 
    由于SQL语句实际上是几个函数片段拼凑而成的，故可以手动在Provider中进行逻辑流判断，然后返回最后的值。
+
+   #### 八、其他特性
+
+   1.  **日志**，MyBatis自身不带有日志功能，需要借助第三方日志功能，如log4j，其配置非常简单：导入log4j的jar包后，在根目录下配置log4j.properties,代码如下：
+
+       ```properties
+       #log4j.properties
+       # Global logging configuration
+       log4j.rootLogger=ERROR, stdout
+       # MyBatis logging configuration...
+       log4j.logger.mapper=TRACE
+       # Console output...
+       log4j.appender.stdout=org.apache.log4j.ConsoleAppender
+       log4j.appender.stdout.layout=org.apache.log4j.PatternLayout
+       log4j.appender.stdout.layout.ConversionPattern=%5p [%t] - %m%n
+       ```
+
+       关于配置文件的具体信息，参见[参考教程](http://how2j.cn/k/log4j/log4j-config/1082.html)。
+
+   2.  **延迟加载（懒加载）**，该功能开启后，在一对多或多对一操作中，只有在用到了相关的对象时，才会进行二级查找，以此减少了数据库操作的消耗，其主要是在mybatis-config.xml中进行配置：
+
+       ```xml
+       <configuration>
+         	<!--....-->
+           <settings>
+               <!-- 打开延迟加载的开关 -->
+               <setting name="lazyLoadingEnabled" value="true" />
+               <!-- 将积极加载改为消息加载即按需加载 -->
+               <setting name="aggressiveLazyLoading" value="false"/>
+           </settings>
+         	<!--....-->
+       </configuration>
+       ```
+
+       需要注意触发懒加载的条件，目前遇到的有直接将对象放入流输出就触发了懒加载的情况。
+
+   3.  **分页**，这里借助了MyBatis的插件**PageHelper**，当然也可以直接写在SQL里，不过用注解的话就会出现分页参数不可配的情况。下面是使用实例：
+
+       ```xml
+       <!--mybatis-config.xml-->
+       <configuration>
+       	<!--...-->
+           <plugins>
+               <plugin interceptor="com.github.pagehelper.PageInterceptor"/>
+           </plugins>
+           <!--...-->
+       </configuration>
+
+       //Test.java
+       //...在main的数据库查询调用之前加一句
+       PagerHelper.offsetPage(offset,limit);
+       ```
+
+   4.  **一级缓存**，session会对查询过的结果进行缓存，当查询参数一致时，不会执行SQL语句而直接返回值，在数据库被增删改之后缓存会被清除。
+
+   5.  **二级缓存**，在配置了缓存设置的情况下，SessionFactory会缓存数据库结果（试验失败）。
