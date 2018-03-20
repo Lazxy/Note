@@ -2,6 +2,36 @@
 
 >   ​	还是不太会写SQL，在决定多练习前还是先记住些原则，避免养成坏习惯。其中开始的那些内容是公司大佬分享的，之后可能会再补充一些，该手册基于Oracle。
 
+#### 一些基础知识
+
+1.  SQL的执行流程：
+
+    ```
+    //下面语句前的标号表示执行顺序
+    (8) SELECT (9) DISTINCT (11) <TOP_specification> <select_list> 
+    (1) FROM <left_table>
+    (3) <join_type> JOIN <right_table> 
+    (2) ON <join_condition>
+    (4) WHERE <where_condition> 
+    (5) GROUP BY <group_by_list> 
+    (6) WITH {CUBE | ROLLUP} 
+    (7) HAVING <having_condition> 
+    (10) ORDER BY <order_by_list>
+
+    1. FROM: left和right做笛卡尔积，生成VT1 （Virtual Table 即虚拟表）
+    2. ON: 对VT1应用ON筛选器，只有那些使为真才被插入到TV2。
+    3. JOIN: 保留表中未找到匹配的行将作为外部行添加到VT2（左外连接或者右外连接），生成TV3。如果FROM子句包含两个以上的表，则对上一个联接生成的结果表和下一个表重复执行步骤1到步骤3，直到处理完所有的表位置。(感觉上ON应该是与JOIN同步执行的，只是ON是一个先决判断条件)
+    4. WHERE：对TV3应用WHERE筛选器，只有使为true的行才插入TV4。
+    5. GROUP BY：按GROUP BY子句中的列列表对TV4中的行进行分组，生成TV5。执行顺序从左往右分组。
+    6. CUTE|ROLLUP：把超组插入VT5，生成VT6。
+    7. HAVING：对VT6应用HAVING筛选器，只有使为true的组插入到VT7。Having语句很耗资源，尽量少用　　    8. SELECT：处理SELECT列表，产生VT8。
+    9. DISTINCT：将重复的行从VT8中删除，产品VT9。
+    10. ORDER BY：将VT9中的行按ORDER BY子句中的列列表顺序，生成一个游标(VC10)。执行顺序从左到右，是一个很耗资源的语句。
+    11. TOP：从VC10的开始处选择指定数量或比例的行，生成表TV11，并返回给调用者。
+    ```
+
+    ​
+
 #### 关于索引
 
 1.  在经常用作**过滤器**的字段上建立索引
@@ -17,7 +47,7 @@
 
 1.  多表查询时，选择**数据条数最少的表**，或者**交叉表（被其他表引用的表）**作为基础表。
 
-2.  ORACLE采用**自下而上的顺序**解析**WHERE**子句，**表之间的连接必须写在其他WHERE条件之前，可以过滤掉最大数量记录的条件必须写在WHERE子句的末尾**。
+2.  ORACLE采用**自下而上的顺序**解析**WHERE**子句，**表之间的连接必须写在其他WHERE条件之前，可以过滤掉最大数量记录的条件必须写在WHERE子句的末尾**。（听说Oracle10g之后就改成了系统自行进行条件评估和排序了OTZ）
 
 3.  HAVING 只会在检索出所有记录之后才对结果集进行过滤，处理需要排序,总计等操作，**通过WHERE子句限制记录的数目代替用HAVING过滤**,那就能减少这方面的开销。
 
@@ -27,7 +57,7 @@
 
     (2) **‘||’**是字符连接函数. 就象其他函数那样, 停用了索引. 
 
-    (3)** ‘+’**是数学函数. 就象其他数学函数那样, 停用了索引. 
+    (3)**‘+’** 是数学函数. 就象其他数学函数那样, 停用了索引. 
 
     (4)相同的索引列不能互相比较,这将会启用全表扫描.
 
@@ -48,3 +78,4 @@
 12.  避免在索引列上使用IS NULL和IS NOT NULL。
 
 13.  带有**DISTINCT**,**UNION**,**MINUS**,**INTERSECT**,**ORDER BY**的SQL语句会启动SQL引擎。执行耗费资源的排序(SORT)功能。 DISTINCT需要一次排序操作, 而其他的至少需要执行两次排序。通常, 带有UNION,MINUS , INTERSECT的SQL语句都可以用其他方式重写。
+
