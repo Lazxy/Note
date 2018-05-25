@@ -1,3 +1,5 @@
+
+
 ### Kotlin笔记
 
 #### 1.Package：
@@ -62,8 +64,9 @@ Kotlin中，所有类型都是对象（基本类型在被调用时都是其封�
 
 >关于Kotlin符号的重载，其重载符号实际是以类成员方法的形式给出的，这些方法都以**operator**关键字为修饰符，可以由使用者自定义重载。值得注意的对应重载有下面几个：
 >
->| +a                   | a.unaryPlus()               |
+>| 运算符表达式               | 对应运算方法                      |
 >| -------------------- | --------------------------- |
+>| **+a**               | **a.unaryPlus()**           |
 >| __-a__               | __a.unaryMinus()__          |
 >| __a in b__           | __b.contains(a)__           |
 >| __a(i_1, ..., i_n)__ | __a.invoke(i_1, ..., i_n)__ |
@@ -173,7 +176,7 @@ ___
 
 #### 4.Returns and Jumps
 
-Kotlin中的循环跳出和函数返回关键字仍然为`break` 、`continue`和`return`，但它们的作用范围有所不同。在默认情况下，break和continue会跳出当前最内层的循环，而不同于Java的跳出所有循环；return会直接返回最外层函数的值，即同Java一样中断函数流程，但在当前函数为**匿名函数**时，则为返回当前匿名函数的结果，而不中断整个函数体的运行。这三者可以由`@`关键字修饰的`label`标识来确定范围，示例如下：
+Kotlin中的循环跳出和函数返回关键字仍然为`break` 、`continue`和`return`，且它们的作用范围也与Java相同：在默认情况下，break和continue会跳出当前所在层的循环，而return会直接返回最外层函数的值，即跳出整个循环；但在当前函数为**匿名函数**时，则为返回当前匿名函数的结果，而不中断整个函数体的运行。这三者可以由`@`关键字修饰的`label`标识来确定范围，示例如下：
 
 ```kotlin
 loop@ for((index,value) in array.withIndex()){  //label名字可以自定义，
@@ -199,7 +202,19 @@ fun foo() {
 }
 ```
 
-___
+>   在Java中，其实也有类似的标记，此时该标记写在for之前，且没有@符号，如：
+>
+>   out: for(...) {
+>
+>   ​	for(...){
+>
+>   ​	 break out; 
+>
+>   ​	}
+>
+>   }
+
+---
 
 #### 5.Classes and Inheritance
 
@@ -214,7 +229,7 @@ ___
 	}
 3.以有参构造作为主构造函数的类
 	class Test public constructor(val name: String,val age: Int){//这里的val可以省略，参数列表内默认为常数
-	  var mName = name //可以作为成员变量的初始化元素，不过其生命周期也仅止于此，不能再在成员方法中调用该参数了
+	  var mName = name //可以作为成员变量的初始化元素,同时也可以直接将构造参数拿来使用
       init{
         println(mName) //也可以在init代码块中进行操作，这个代码块即相当于构造的函数体，也可以省略
       }
@@ -318,7 +333,7 @@ var <propertyName>[: <PropertyType>] [= <property_initializer>] //从1.1版本�
 var age: Int
 	get() = name.length
 	set(value){
-      value*2
+		value*2
 	}
 但当其不存在非默认setter方法或者其在getter和setter中用到了field时，其初始化必须在声明或者构造中完成。
 var name: String = "Lazxy"
@@ -334,7 +349,7 @@ val size: Int = 1
 //上面提到的field字段指代的值为该变量/常量的实际值，当该字段被使用时，必须存在back field，即可用的初始备用值。
 ```
 
-需要补充的是，所有变量的可见性与其getter/setter方法是一致的（或者说变量的可见性约束了它的方法），这样一来要如何实现JavaBean的结构呢？官方给出的方法是这样的：
+需要补充的是，所有变量的可见性与其getter/setter方法是一致的（或者说变量的可见性约束了它的方法），这样一来要如何实现JavaBean的结构呢？~~官方给出的方法是这样的：~~ 
 
 ```kotlin
 private var _table: Map<String, Int>? = null
@@ -347,7 +362,7 @@ public val table: Map<String, Int>
     }
 ```
 
-即为实际要访问的变量设置一个可见性更高的封装，虽然实际调用值没有区别，但是没有办法直接调用原变量。这种做法略显繁琐，同时也暴露了一个没有必要可见的table封装，但由于设计理念差异，要遵循传统就只能这样做了。
+~~即为实际要访问的变量设置一个可见性更高的封装，虽然实际调用值没有区别，但是没有办法直接调用原变量。这种做法略显繁琐，同时也暴露了一个没有必要可见的table封装，但由于设计理念差异，要遵循传统就只能这样做了。~~ （翻新的文档发现已经找不到这段了 = = 显式调getter和setter方法似乎已经彻底被放弃了）
 
 针对于上面说到的常量可变问题，Kotlin也提供了一个专门的修饰符`const`，与C++一样，专门来修饰不可变的常数。其修饰对象只能是为String或基本数据类型的类的成员变量/**包级变量**，且不能有非默认的setter方法。
 
@@ -612,7 +627,7 @@ fun demo(x: Comparable<Number>) {
 ```
 Function<*, String> //泛型类型必须为Nothing的父类，String的子类
 Function<Int, *> //泛型类型必须为Int的父类，Any的子类
-Function<*, *> //泛型类型必须为Nothing的父类，Any的子类，即任意类型
+Function<*, *> //泛型类型必须为Nothing的父类，Any的子类，即任意类型也可以直接写作Function<*>
 ```
 
 另外，也可以为函数设置泛型，方法与Java也基本一致，但同样在通配符这一块有所区别。函数的泛型限制不允许用`in`或`out`来做限定了，但可以通过`:`为泛型标定上界，如：
