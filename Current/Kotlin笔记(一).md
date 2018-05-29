@@ -423,35 +423,40 @@ ___
    }
    ```
 
-   **注意，由于该方法是静态地附加在一个确定的类上的，故当被调用时，以类名为准，而与其实际类型无关（这主要体现在拓展函数的重写上），这跟继承特性是不同的。**并且当拓展函数与类的原成员函数同名时，会调用原成员函数，示例如下：
+   **注意，由于该方法是静态地附加在一个确定的类上的，故当被调用时，以类名为准，而与其实际类型无关（类似于Java成员变量，父类与子类的同名成员变量是根据类的当前类型取值的），这跟继承特性是不同的。**并且当拓展函数与类的原成员函数同名时，会调用原成员函数，示例如下：
 
    ```kotlin
-   class C{
-     fun D.foo(){
-       println("D in C") //原拓展方法
-     }
-     fun caller(d: D){
-       d.foo()
-       d.already()
-     }
-     fun D.already{
-       println("fun in C1")  //与已有方法同名的拓展方法
-     }
+   open class C{
+     open fun foo() = println("C foo") //原成员方法
    }
-   class C1: C(){
-     override fun D.foo(){
-       println("D in C1") //重写的拓展方法
-     }
-   }
+   class C1: C()
    class D{
-     fun already{
-       println("fun in D") //原同名方法
-     }
+       fun C.self() = println("C") //父类的拓展方法
+
+       fun C1.self() = println("C1") //子类的拓展方法
+
+     	fun C.foo() = println("D foo") //重写原成员方法为拓展方法
+
+       fun invokeC (c:C){
+           if(c is C1)
+               c.self() //这里由于Kotlin的编译优化，在确认了c的类型后，会将其转为C1
+           else
+               c.self()
+         	c.foo()
+       }
    }
+   //-main中调用
    var c: C = C()
    var c1: C = C1()
-   c.caller(d) // D in C | fun in D
-   c1.caller(d) // D in C 此时是按照"该对象为C类型"的逻辑调用的拓展方法
+   val d = D()
+   d.invokeC(c)
+   d.invokeC(c1)
+
+   //结果
+   C
+   C foo
+   C1
+   C foo
    ```
 
    另外，拓展函数的宿主可以为空，此时需要用`this == null`进行一次判空，从而避免空指针异常。
@@ -465,7 +470,20 @@ ___
        get() = size - 1
    ```
 
-类成员的拓展范围取决于其声明所在的类，当导入相应的声明类后则拓展方法和变量起效。
+​        类成员的拓展范围取决于其声明所在的类/包，当导入相应的声明类/包后则拓展方法和变量起效，**注意如果两个被依赖的类/包都对同一个拓展方法或者拓展属性进行了定义，那么会发生定义冲突导致编译不通过，这个时候可以为冲突的导入选项进行重命名，例如：**
+
+```kotlin
+import knative.index
+import knative.other.index as index2 //同名拓展属性，方法也一样
+
+fun whatever(){
+    val c = C()
+    c.index
+    c.index2 //避免了定义不明的冲突
+}
+```
+
+
 
 ___
 
@@ -484,7 +502,7 @@ ___
 
    可见只要一行代码就可以构造完成了，但在Kotlin中，一个正常的类也是可以这样被构造并使用的，数据类有什么不一样呢？其特点在于有一个默认成员方法：`copy`，该方法可以以部分复制的方式构造出一个新的数据类对象，使用如下：
 
-   ```
+   ```kotlin
    var d: DataClass = DataClass(value1,value2,...valueN)
    var dn: DataClass = d.copy(value2 = value)//这里将value2的值改为value，其余全部复制d的值
    //注意，这里的"value2 ="是成员变量名注解，使用与部分默认构造的使用一致
@@ -492,10 +510,10 @@ ___
 
    最后，由于Data Class 默认创建了`componentN() functions`，所以可以用匿名构造的方式创建对象，如：
 
-   ```
+   ```kotlin
    var d: DataClass = DataClass()
-   var(value3,value4) = d //一个匿名对象
-   println(value3 + "$value4")
+   var(value1,value2) = d //一个匿名对象，只暴露出了两个成员变量，而变量值来自d的component1、component2方法的返回,这种行为也称解构
+   println(value1 + "$value2")
    ```
 
 2. Sealed Class
@@ -525,7 +543,7 @@ ___
    var n: NestedClass = OuterClass.NestedClass() //直接声明，不需要构造新的外部类
    ```
 
-   根据前面讲过的可见性规则，嵌套类的`private`成员也不能被外部类访问到，同时其不能访问外部类的`private`和`protected`变量，即**嵌套类与其外部类没有任何从属关系，是同等级的类**该种形式的类存在大概仅仅是为了使结构清晰？ 
+   根据前面讲过的可见性规则，嵌套类的`private`成员也不能被外部类访问到，同时其不能访问外部类的`private`和`protected`变量，即**嵌套类与其外部类没有任何从属关系，是两个同等级的类。**该种形式的类存在大概仅仅是为了使结构清晰？ 
 
 4. Inner Classes
 
@@ -688,12 +706,15 @@ ___
    Singleton.test() //直接通过其类名调用方法和成员变量，类似静态类
 
    //结合companion关键字构造静态对象
-   object CompanionClass{ //这里的静态对象实际上还是一个真实对象的实例成员，可以继承父类或者实现接口，但其对象的构造仍然是随其外部类的加载而加载的
-     companion object Factory{
+   class CompanionClass{ 
+     companion object Factory{//这里的静态对象实际上还是一个真实对象的实例成员，可以继承父类或者实现接口，但其对象的构造仍然是随其外部类的加载而加载的
        fun create(): CompanionClass = CompanionClass()
      }
    }
-   var c = CompanionClass.create() //可以直接省略静态对象的名称调用其方法或者变量，事实上，也可以直接省略静态对象的名称，需要对其进行引用时只需要调其默认名称"Companion"。
+   var c = CompanionClass.create() //companion关键字使其可以直接省略静态对象的名称调用其方法或者变量
+   //事实上，也可以在声明时直接省略静态对象的名称，需要对其进行引用时只需要调其默认名称,如：
+   companion object {...}
+   var c = CompanionClass.Companion //这里指代object对象
    ```
 
    ​
@@ -702,7 +723,7 @@ ___
 
 #### 12.Delegation
 
-在一般的继承和实现之外，Kotlin还有一种本地实现**代理模式**的方式，即使用关键字`by`将接口的已有方法和成员变量实现复制到当前类中，其使用方式如下：
+在一般的继承和实现之外，Kotlin还有一种本地实现**代理模式**的方式，即使用关键字`by`将接口的已有方法和成员变量实现复制到当前类中(相当于一个对原始接口的显式继承，而忽略代理类名，但实际继承了代理类的实现)，**只能通过该方法依赖一个代理类。**其使用方式如下：
 
 ```kotlin
 //原接口
@@ -739,10 +760,10 @@ d.onMove() // 输出onMove, 这里调用了被代理类的操作
 
 ```kotlin
 class Client{
-  var value: Int by Delegate()
+  var value: String by Delegate()
 }
 
-class Delegate{ //下面两个方法可通过实现ReadWriteProperty<Client,Int>来重写，而不需要自己构造
+class Delegate{ //下面两个方法可通过实现ReadWriteProperty<Client,String>来重写，而不需要自己构造
   operator fun getValue(thisRef: Any?, property: KProperty<*>): String {
   		//thisRef 为被代理变量的引用，这里为Client的引用
   		//这里的property包括变量的各种属性，包括变量名、是否为open、是否为const，可见性等等
