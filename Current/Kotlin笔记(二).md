@@ -34,13 +34,13 @@
 
    ```Kotlin
    //函数声明
-      infix fun Object.handle(x: Int): Int{
+      infix fun ClassName.handle(x: Int): Int{
         ...
       }
       //函数调用 |注意，只有单参数且用infix修饰的成员方法或者拓展方法才能够这样调用
-      object handle 1
+      obj handle 1
       //其相当于
-      object.handle(1)
+      obj.handle(1)
    ```
 
 3. _函数参数_：Kotlin的函数参数允许默认值，这个特性类似Python，这可以减少重载，但需要注意的是，参数的顺序很重要，当参数列表前面有带默认值但未二次赋值的参数时，不允许直接跳过这些参数给后面的参数赋值：
@@ -218,7 +218,7 @@ inline fun <reified T> TreeNode.findParentOfType(): T? {
 }
 ```
 
-这种泛型成为**验证类型参数**_(Reified type parameters)_
+这种泛型称为**验证类型参数**_(Reified type parameters)_
 
 最后，从Koltlin1.1开始，成员变量也能被`inline`修饰了，此时其setter和getter是内联的，与一般的内联函数相同。
 
@@ -226,44 +226,7 @@ ___
 
 #### 十六、Coroutines
 
-**协程机制**是Kotlin试用中的一种异步任务控制方法，其主要思想是**用任务的挂起操作来代替传统并发情景下的线程阻塞，即将多任务操作放在一个线程中，依靠事件驱动，并模仿CPU调度机制对多任务进行自主调度**，致力于使异步操作的表达与同步顺序操作一样简单。协程的使用依赖于上下文**CoroutineContext**，和Android相似，其基本操作，包括创建(create)、启动、暂停和继续(resume)，继续的操作在**Continuation** 当中，剩下的三个都是包级函数或扩展方法。其基础使用示例如下：
-
-```kotlin
-//协程函数定义
-fun asyncCalcMd5(path: String, block: suspend () -> Unit) { //协程函数，作为异步操作的发起点
-    val continuation = object : Continuation<Unit> { //开启协程的参数，其resume函数会在异步操作结束后被调用
-        override val context: CoroutineContext //定义该协程的上下文
-            get() = FilePath(path)
-
-        override fun resume(value: Unit) {
-            log("resume: $value")
-        }
-
-        override fun resumeWithException(exception: Throwable) {
-            log(exception.toString())
-        }
-    }
-    block.startCoroutine(continuation) //开启一个协程
-}
-//调用协程
-asyncCalcMd5("test.zip") {
-        //用suspendCoroutine方法暂停我们的线程，并开始执行一段耗时操作
-        //这里返回值的类型是由变量类型决定的，即编译器自动的上下文识别
-        val result: String = suspendCoroutine {
-            continuation -> //这个参数的来源不明，感觉只是为了之后的回调创建的空实体
-          	//doSomething中是实际进行的耗时操作，完成后将参数传入resume，该参数最后会作为suspendCoroutine的结果返回，若没有这个返回，则会直接跳出协程函数
-            continuation.resume(doSomething(continuation.context[FilePath]!!.path))
-        }
-  		println(result)
-    }
-}
-//上下文实体类
-class FilePath(val path: String): AbstractCoroutineContextElement(FilePath){
-    companion object Key : CoroutineContext.Key<FilePath>
-}
-```
-
-关于其异步封装和真正的多任务交互，待对Kotlin语法了解得更多了之后再继续学习，这里暂且搁置。
+**协程机制**是Kotlin试用中的一种异步任务控制方法，其主要思想是**自主控制任务的挂起操作来代替传统并发情景下的线程抢占式行为，即将多任务操作流程放在一个线程中，依靠事件驱动，并模仿CPU调度机制对多任务进行自主调度** 。从实现效果上来说，协程基本上就是综合了Java已有的Future和线程池的特性，然而在参照各种文章时发现其执行逻辑极其反人类（甚至在多次运行时同一条语句会执行在不同的线程里），且各种简化版Lambda造成了极大的阅读困难，同时也没有人能令人信服地说明为什么它比线程机制更好，故这里暂且放弃使用。
 
 ___
 
@@ -343,7 +306,9 @@ ___
 
 ```kotlin
 //如果str为空，则会返回null；如果需要在引用非空时进行一些操作，可以用let关键字代替非空判断
-var i = str?.let{//...}
+var i = str?.let{
+  //...
+}
   
 //如果需要在引用为空的地方进行备选操作，则可以用?:符号来承接操作表达式
 var i = str.length ?: -1 //这里也可以直接写return 或者抛出一个异常
@@ -371,8 +336,10 @@ ___
   val k = KotlinClass::class //获取一个KClass实例，大概和Java的.class字节码文件差不多？
   val j = JavaClass::Class.java //对Java类获取KClass实例 在Kotlin1.1后可以直接通过.javaClass调用
 2.函数的反射
-  fun reflectFun(){//...} //原函数
-  val func = ::reflectFun //对本类函数的引用，类型为KFunction，可能相当于Java的method
+  fun reflectFun(){
+    //...
+  } //原函数
+  val func = ::reflectFun //对本类函数的引用，类型为KFunction，可能相当于Java的Method
   val funOut = String::get //对其他类函数的引用
   //这些函数的引用可以作为高阶函数的参数或者直接调用，参数仍跟原函数一致，可以视作是一种别名机制。
 3.已知变量的反射
