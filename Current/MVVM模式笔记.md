@@ -4,13 +4,13 @@
 
 ​	**View**：大部分是使用了_data-binding_的XML文件，通过`data`标签声明绑定的数据，在这里是一个(或多个)ViewModel，将控件的数据源（包括可见性、点击事件和文字等）通过指派ViewModel的各个成员变量完成绑定。除此之外还有**Activity**和**Fragment**等组件，用于对ViewModel和xml文件的初始化绑定以及处理一些较为复杂的、不可由data-binding直接代理的UI相关操作（实例中是对RecyclerView的配置和数据填入）。
 
-​	**ViewModel**：作为View绑定数据的载体和Model类的调用方，其内包括对xml中需求变量和点击事件的处理，同时会将一些复杂操作交由Activity/Fragment处理。其内与View相关的数据都为**观察者模式**相关类型，为ObservableXXX(基本数据类型)或者ObservableField<T>(对象类型，多为String)
+​	**ViewModel**：作为View绑定数据的载体和Model类的调用方，其内包括对xml中需求变量和点击事件的处理，同时会将一些复杂操作交由Activity/Fragment处理。如果要实现数据监听，其内与View相关的数据都需要为**观察者模式**相关类型，为ObservableXXX(基本数据类型)或者ObservableField<T>(对象类型，多为String)；否则，可以用基本类型或者自定义对象作为View的数据源。
 
 ​	**Model**：包括实体数据类和网络请求、算法类等，主要用于由进行I/O与计算操作获得结果，并反馈到ViewModel，作为View的数据源依据。
 
 #### 组件细节：
 
-​	MVVM模式的实现基本都依赖于data-binding的双向绑定特性，故ViewModel类是整个框架的实现核心。
+​	MVVM模式的实现基本都依赖于data-binding的双向绑定特性，其具体监听动作一般写在ViewModel中，故ViewModel类是整个框架的实现核心。
 
 ​	简单地扫了一下其Observable数据类的代码，基本就是标准的观察者模式，没什么好说的，但不得不提一下其数据的关联方式：在XML文件中，控件属性的数据源表达方式为@{viewModel.property}(假设此时定义的VM变量名为viewModel，属性名为property)，则在ViewModel中该属性的声明可以有两种方式——直接声明一个public修饰的同名成员变量property，变量类型为上面提到的两种观察者模式类型；或者声明一个public修饰的函数，函数名为getProperty()，返回值为其所需类型。
 
@@ -204,11 +204,11 @@ private static class User extends BaseObservable {
 
 #### 自定义属性方法
 
-​	Data Binding允许在对应数据类中定义自定义方法，通过取控件属性值作为参数来进行一些设置，使用场景如图片的加载和一些android框架中未定义的单项属性控制方法（如TextView边距的设置）：
+​	Data Binding允许在对应数据类中定义自定义**静态**方法，通过取控件属性值作为参数来进行一些设置，使用场景如图片的加载和一些android框架中未定义的单项属性控制方法（如TextView边距的设置）：
 
 ```
 JavaCode:
-@BindingAdapter("img:imageUrl","img:imageSize") //这个注解用于标明其调用的参数及命名空间，甚至可以重写android:...类属性
+@BindingAdapter("img:imageUrl","img:imageSize") //这个注解用于标明其调用的参数及命名空间(可省略)，甚至可以重写android:...类属性
 public static void loadImage(View view,String imageUrl,int imageSize){
 	//...
 }
@@ -220,12 +220,138 @@ XML:
 	/>
 ```
 
-​	当所设定的属性涉及到事件响应时，则需要将原接口回调方法作为参数赋值，且当该接口回调不止一个时，需要分别为每个方法写一个自定义方法，最后再同意写一个自定义方法（如TextWatcher的几个方法就需要设置不同的BindingAdapter，然后在最后一个BindingAdapter中传入所有参数）。*这里的使用略复杂，还待进一步研究。*
+​	上述自定义方法的第一个参数表示能调用该方法的View类型，后面的参数则对应属性声明的类型。当允许属性之一被设定则Adapter即生效时，可以将注释写作(这种情况在方法内要注意判空)：
+
+```
+@BindingAdapter(value = {"img:imageUrl","img:imageSize"},requireAll=false)
+```
+
+​	另外，Data Binding可以为自定义方法提供历史值（或者说修改前的当前值），该值的应该是构造类自身保存的，不依赖原View的getter方法，其声明如下：
+
+```java
+@BindingAdapter("img:imageUrl","img:imageSize") 
+public static void loadImage(View view,String oldImageUrl, int oldImageSize,String imageUrl,int imageSize){
+	//注意这里所有参数的历史值必须共同出现出现，不能出现有一个参数提供了历史值，另一个参数不提供的情况
+	//...
+}
+```
+
+​	当所设定的属性涉及到事件响应且该接口定义的回调方法不止一个时，就可以通过上述方式对不同的接口方法进行拆分，以多个属性配置的方式设置接口中的某一个方法。同时，若监听接口的设置方式不是一般的setter、getter，而是add/remove的形式时，可以通过系统集成的 ListenerUtil.traceListener方法来设置/获取DataBinding框架绑定在View上的监听对象，从而保证监听和View对象不会因绑定关系而造成泄露。
 
 #### 对象类型转换
 
-Data Binding文件中支持android原生的对象类型适配和转换，如在android:background里会自动把color资源值转化为ColorDrawable，但该转换只会在初次设值时进行，故不允许用结果可能为两种不同类型的选择表达式。
+Data Binding支持声明对象类型的自动适配和转换，如之前就支持的在android:background里自动把color资源值转化为ColorDrawable，如果需要进行自定义转换，则需要@BindingConversion注解下的静态转换方法，其示例如下：
+
+```java
+@BindingConversion
+public static ColorDrawable convertColorToDrawable(int color) {
+    return new ColorDrawable(color);
+}
+```
+
+需要注意的是，如果在xml中的赋值语句是一个三元表达式，则表达式左右的值类型应当保持一致性，如：
+
+```
+<!--正确-->
+<View 
+	android:background="@{isError ? @color/red : @color/white}"
+	.../>
+<!--错误-->
+<View 
+	android:background="@{isError ? @drawable/error : @color/white}"
+	.../>
+```
+
+#### 双向绑定
+
+上述内容中提到的Model与View间的绑定关系都是由*Model变化 -> View更新重绘*的单向关系，而DataBinding也支持数据源和视图的双向绑定，其做法也很简单，即在XML引用数据源时添加一个“=”号，如：
+
+```xml
+<!--单向绑定-->
+android:text="@{model.value}"
+
+<!--双向绑定-->
+android:text="@={model.value}"
+```
+
+采用双向绑定写法时，当view.setText(newValue)方法生效时，则model对应的值也会发生改变。
+
+上面已经说到，利用Observable对象可以实现数据对象变更时带动UI变更，其UI变更的具体动作可以通过@BindingAdapter注解的静态方法实现。而反向的数据绑定动作设定可以通过**@InverseBindingAdapter**注解下的静态方法实现，示例如下：
+
+```java
+@InverseBindingAdapter("android:text", event = "textAttrChanged")
+public static String getText(TextView tv){
+    return t.getText(); //这里的返回值即为Model中会被置的值
+}
+```
+
+其中event参数表示View->Model绑定事件的监听事件，其命名格式固定为*属性名* +*attrChanged*, 这个事件需要相应的BindingAdapter的显式声明，否则会有编译异常。对于*android:text*属性，该事件已经定义过了，但对于如*android:textSize*这样的属性，则需要手动进行定义，故其完整的双向绑定定义方式如下：
+
+```java
+//参数值改变事件定义
+@BindingAdapter("textSizeAttrChanged")
+    public static void textChangeListener(TextView tv,InverseBindingListener textAttrChanged){
+        textAttrChanged.onChange(); //反向绑定事件的监听，当这个方法被调用时，数据源中的对应值才会发生变化
+}
+
+//反向绑定声明
+@InverseBindingAdapter(attribute = "android:textSize" , event = "textSizeAttrChanged")
+    public static float getFontSize(TextView tv){
+        return tv.getTextSize();
+}
+```
+
+需要注意的是：**当一个双向绑定数据源被多个属性用到时，注意不要在其涉及的单向绑定的Adapter方法中去修改这个数据源及其双向绑定的属性，否则可能会导致无限递归式的赋值和更新操作**，如：
+
+```xml
+<!--XML-->
+<TextView
+     android:layout_width="wrap_content"
+     android:layout_height="wrap_content"
+     android:onClickListener="@{viewModel.tvListener::onClick}"
+     android:text="@={viewModel.model.value}"
+     android:textSize="@{viewModel.model.value * 3}
+     />
+```
+
+```java
+//Java
+//...
+public View.OnClickListener tvListener = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            model.setValue(model.getValue() + 1);
+        }
+};
+
+@BindingAdapter(value="textSize")
+public static void setFontSize(TextView tv, float size){
+    if(size > 0){
+        tv.setTextSize(size);
+        tv.setText("Current size is: " + size)
+    }
+}
+```
+
+上面的场景虽然没有什么意义，但它能够说明这个问题：当TextView被点击时，首先Model的value值被改变了，于是textSize的Adapter方法，即setFontSzie得到触发，在这个方法中会重设text属性的值，由于text属性与Model是双向绑定的，此时其又会去更新Model内的value值，继而导致上面的setFontSize再次被触发，于是由于它们的绑定关系，这里就形成了一个死循环。
 
 #### IDE支持
 
-AndroidStudio中允许用`default`字段来设定数据源不存在时的默认值。
+AndroidStudio中允许用`default`字段来设定数据源不存在时的默认值，如：
+
+```
+<TextView
+android:text="@{user.name,default = 'Lazxy'}"
+.../>
+```
+
+#### 插件
+
+1. DataBinding Support：可以通过在布局页面 Alt+Enter的形式将常规布局转化为DataBinding布局，以及各种相关标签生成的快捷键。
+
+
+
+#### 其他
+
+1. `@{}`中不能直接写&&符号 应该用`&amp;`来代替。
+2. `@{}`不允许直接使用@mipmap来引用图片资源，需要通过设定BindingAdapter来曲线救国。
