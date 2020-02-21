@@ -1,4 +1,5 @@
 初始命令：git config --global user.name/user.email values //设置发布者名称或邮箱
+输入 git config [--global] --list 可查看当前的git设置
 到项目文件夹底部 输入git init //创建一个空的git代码仓库
 输入 ls -al //查看该项目的所有git操作
 输入 git add file/document/. //将文件或文件夹添加进欲提交内容里 “.”为全部添加
