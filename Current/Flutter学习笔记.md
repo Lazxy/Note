@@ -20,11 +20,11 @@ StatefulWidget在首次加入到视图树中时，会通过createState创建一�
 
 >关于这种状态管理方式的好处，类似于DataBinding的状态绑定：只需要设置不同状态下视图的属性，就可以简单地完成视图的更新，并且得益于比对算法， 视图不需要完全重绘
 >
->将StatefulWidget控件的实际build方法放在State中的用意是
+>将StatefulWidget控件的实际build方法放在State中的用意是(来自State的build方法注释)
 >
->1. 如果StatefulWidget中包含了带State的构造方法，这样其子类也不可避免地会持有其State的引用
->2. 同理如果StatefulWidget的子类为StatelessWidget，其子类就不能不带状态
->3. 再者如果在Stateful
+>1. 如果StatefulWidget中包含了带State的构造方法，这样其子类也不可避免地会持有其State的引用，可能影响父类的状态。
+>2. 同理如果StatefulWidget的子类为StatelessWidget，其子类就不能不带状态，这违背设计的初衷。
+>3. 再者如果在StatefulWidget中直接定义状态，则在buildState方法中使用闭包时获取现有属性就会是以`this.XX`的形式，而Dart的闭包内的引用是不可变的实体——于是在Widget重建时，如果不同时重建State，就会出现State依然持有被重建前的Widget内容，而不会因为重建得到更新，这影响了State恒定而Widget可变的设计初衷。
 
 ---
 
@@ -486,7 +486,11 @@ typedef bool Compare(String ori,String src);
 
   >如果在main方法的APP中同时设置了home和initialRoute，则在打开APP的时候会同时打开两个页面。
 
-- **Scaffold**是一个按MD风格首页绘制的Widget，其内容接近AS提供的Navigation Drawer Activity的那个页面模板，即包括一个Drawer、FloatActionButton和App Bar的页面
+- **Scaffold**是一个按MD风格首页绘制的Widget，其内容接近AS提供的Navigation Drawer Activity的那个页面模板，即包括一个Drawer、FloatActionButton和App Bar的页面。其中，AppBar是一个`PreferredSizeWidget`，这类控件定义了一个预期尺寸，而不固定大小，方便Scaffold对其进行调整（比如处于全局模式时加上一个状态栏的高度，这个模式由`primary`属性决定，默认为true）；
+
+- Flutter页面的生命周期与数据的关联方式相当有意思，当一个Route被添加到窗口中（也就是调用了`push`）之后，会返回一个Future\<T\>对象，该对象是这个Route被关闭（也就是被`pop`）时的返回值。这种情况可以类比为：将一个Bundle对象通过Intent传给Activity，在该Activity完成任务之后向该Bundle放入需要的结果值，然后关闭页面时回调上个页面的onActivityResult。
+
+  和Android不同，Flutter通过Future机制替代了回调形式，在上面类比的场景中，可以通过生命周期回调中处理Future的方式来传递数据；或者像`WillPopScope`所做的一样，通过await等待得到Future的结果（这个控件就通过Future标志位阻断了pop的过程，从而能够实现首页按两次返回退出的功能）。
 
 ### Tips
 
