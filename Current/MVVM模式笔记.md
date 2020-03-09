@@ -12,7 +12,7 @@
 
 ​	MVVM模式的实现基本都依赖于data-binding的双向绑定特性，其具体监听动作一般写在ViewModel中，故ViewModel类是整个框架的实现核心。
 
-​	简单地扫了一下其Observable数据类的代码，基本就是标准的观察者模式，没什么好说的，但不得不提一下其数据的关联方式：在XML文件中，控件属性的数据源表达方式为@{viewModel.property}(假设此时定义的VM变量名为viewModel，属性名为property)，则在ViewModel中该属性的声明可以有两种方式——直接声明一个public修饰的同名成员变量property，变量类型为上面提到的两种观察者模式类型；或者声明一个public修饰的函数，函数名为getProperty()，返回值为其所需类型。
+​	简单地扫了一下其Observable数据类的代码，基本就是标准的观察者模式，在DataBinding的生成类中默认对其附加的监听，在Observable.notifyChange生效后对UI进行修改，同时不得不提一下其数据的关联方式：在XML文件中，控件属性的数据源表达方式为@{viewModel.property}(假设此时定义的VM变量名为viewModel，属性名为property)，则在ViewModel中该属性的声明可以有两种方式——直接声明一个public修饰的同名成员变量property，变量类型为上面提到的两种观察者模式类型；或者声明一个public修饰的函数，函数名为getProperty()，返回值为其所需类型。
 
 ​	两边都完成了相应的声明后，在Activity中，通过DataBindingUtils进行setContentView得到了XXXBinding对象，对象名前缀和布局文件名一致（去下划线的帕斯卡式命名）。该函数中调用了activity的setContentView函数，并将得到的窗口根布局进行了监听建立。最后，XXXBinding对象通过setViewModel(这里的ViewModel也源自XML文件中定义的变量名)设置绑定的数据源，整个初始化流程结束。
 
@@ -126,11 +126,11 @@ public class ClickListener{
 
 #### 布局嵌套相关
 
-​	当布局中需要用到`<include>`标签时，可以通过`bind`属性将当前布局文件指定的数据源传递给子布局，但子布局中一定要有同名变量：
+​	当布局中需要用到`<include>`标签时，可以通过`自定义命名空间:属性名=属性值`的定义将当前布局文件指定的数据源传递给子布局，但子布局中一定要有对应属性名的同名变量，否则编译将不能通过：
 
 ```xml
 <include layout="@layout/child_layout"
-		 bind="@{data}"/>
+		 bind:data="@{datas.value}"/>
 ```
 
 ​	data binding 不支持`merge`标签的数据传递。
@@ -335,6 +335,8 @@ public static void setFontSize(TextView tv, float size){
 
 上面的场景虽然没有什么意义，但它能够说明这个问题：当TextView被点击时，首先Model的value值被改变了，于是textSize的Adapter方法，即setFontSzie得到触发，在这个方法中会重设text属性的值，由于text属性与Model是双向绑定的，此时其又会去更新Model内的value值，继而导致上面的setFontSize再次被触发，于是由于它们的绑定关系，这里就形成了一个死循环。
 
+> 另外需要一提的是，反向绑定方法调用的时机需要自己通过属性监听来实现，DataBinding只会在Binding创建时调用一次上面的绑定事件响应方法，可以在这里面添加属性变更监听，监听动作为调用反向绑定方法。
+
 #### IDE支持
 
 AndroidStudio中允许用`default`字段来设定数据源不存在时的默认值，如：
@@ -355,3 +357,24 @@ android:text="@{user.name,default = 'Lazxy'}"
 
 1. `@{}`中不能直接写&&符号 应该用`&amp;`来代替。
 2. `@{}`不允许直接使用@mipmap来引用图片资源，需要通过设定BindingAdapter来曲线救国。
+3. 当要在表达式中表示常量字符串时，不能用`''`来包裹字符串，而应该用` `` `。
+4. 当布局中使用了`<include>`标签，且赋予了id，通过ViewBinding对象直接引用时，注意此时其返回的类型实际是**include子布局的ViewBinding对象，而不是IDE中提示的View对象**，此时需要再调用getRoot()方法才能够成功地调用该子布局对象。
+5. 由于xml普通字符串中不允许出现`< >`这两个字符，当需要表达变量的泛型类型时需要用`&lt;`和`&gt;`来分别表示两个单括号。
+6. DataBinding 的数据与控件属性设置并不是同步进行的，在一个连续的过程中，ObservableField的改动会触发页面帧回调，此时mPendingRebind标记位设置为true，如此一来直到帧回调被触发之前（通过Message实现），数据绑定与设置属性的动作一直不会执行，故除非在设置ObservableField之后强制执行绑定操作，否则此时试图在同一块代码中获取到View的新状态是会失败的。
+
+#### 当前可以解决的一些问题
+
+1.减轻Activity内代码的复杂度，可以较容易地将接口请求代码与UI设置代码分离开来。
+
+2.Java层面 可以提取公用方法用于复杂的UI属性设置，而不需要重复书写（如设置网络图片）。
+
+3.XML层面 相同的布局可以更大程度地集约，免除相同布局不同数据源的代码反复出现。
+
+
+
+#### 实现上的一些问题
+
+1.在编译过的工程中可见，实际起效的ViewDataBinding对象都是放在Application module中的，但是实际上在项目文件中引用的是Library module中的同名对象。
+
+
+
