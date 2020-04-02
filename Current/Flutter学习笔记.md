@@ -50,7 +50,7 @@ Flutter的页面定向方式与Native大为不同，其倾向于在main方法中
 
 Flutter可以通过MethodChannel来定义、调用原生应用与Flutter约定的接口，以此来进行数据传递。
 
-Dart是一个单线程模型，_*类似Android的Message事件循环模式，优先执行"主线程"的操作，然后依次将后续异步事件（**async**关键字标注）插入执行队列，以此实现伪异步执行执行的效果_。另外还有Isolate机制，用于处理计算量大的并发任务，类似Java的多线程，但是其任务间并不共享内存，仅通过约定调用方与被调用方的Port形式来进行通信。
+Dart是一个单线程模型，_类似Android的Message事件循环模式，优先执行"主线程"的操作，然后依次将后续异步事件（**async**关键字标注）插入执行队列，以此实现伪异步执行的效果_。另外还有Isolate机制，用于处理计算量大的并发任务，类似Java的多线程，但是其任务间并不共享内存，仅通过约定调用方与被调用方的Port形式来进行通信。
 
 >官方示例中**Port**的约定方式是这样的：
 >
@@ -480,6 +480,8 @@ typedef bool Compare(String ori,String src);
 
   但是暂时不知道Material或者Container这类控件属于什么类型的约束，反正在这两者的约束下，Container的约束配置会失效。
 
+- **GridView**作为网格布局，当正方向子项数量确定时，默认状态下其纵横比为1，基准为正方向子项的尺寸（横向为width，纵向为height），此时子项的边界容易溢出，故注意要设置`childAspectRatio`，保证子项的绘制空间足够。
+
 - 动画效果而言，有**AnimationController**、**Animation**、**Animatable**、**AnimatedWidget**四个关键类。**AnimationController**类似ValueAnimator，将一个动画过程用double值表示，有下限值与上限值，能设置动画运行时间，并执行重复、停止等操作；**Animation**类则主要承担了动画状态监听设置和**AnimationController**值的动态处理工作；**Animatable**的实现基本就是各种**Tween**类，它的作用是对Animation的value值进行转化，从而变成各种AnimatedWidget能够直接使用的对象，如Offset、Color等；最后，**AnimatedWidget**，其子类是各种**Transition**类，作为视图树中的一部分，即动画执行目标的容器，会根据Tween类转化的各种对象来对当前视图进行动态渲染（也有类似FadeTransition这种类不属于AnimatedWidget，但同样可以通过Animation获得动画效果，其作用应该是直接获取value值作为渲染参数）。
 
 - 关于页面跳转，之前看文档的时候提到过，相关的两个类是**Router**和**Navigator**。其中**Router的作用类似于Android中的Activity/Dialog/PopupWindow等基础页面单位 + Transition**，即一方面Router可以用来设定当前页面的展示形式（全屏占满还是部分中间悬浮），另一方面它可以决定当前页面是通过怎样的动画形式完成展示与隐藏（Android的上滑渐进或者iOS的左右切入等）；而Navigator的作用就更接近它的名字的意义了——即**通过新增、删除Router来完成当前页面的展示、隐藏，并通过记录Router的历史顺序来串联访问流程**，类似ActivityStack。目前看来Flutter的页面管理比Android更透明，观感上更像Fragment管理，可以直接通过Navigator方法来完成类似singleTask的效果，也方便调整页面的展示动画，但缺点是每个页面都需要手动从栈中弹出。
@@ -491,6 +493,20 @@ typedef bool Compare(String ori,String src);
 - Flutter页面的生命周期与数据的关联方式相当有意思，当一个Route被添加到窗口中（也就是调用了`push`）之后，会返回一个Future\<T\>对象，该对象是这个Route被关闭（也就是被`pop`）时的返回值。这种情况可以类比为：将一个Bundle对象通过Intent传给Activity，在该Activity完成任务之后向该Bundle放入需要的结果值，然后关闭页面时回调上个页面的onActivityResult。
 
   和Android不同，Flutter通过Future机制替代了回调形式，在上面类比的场景中，可以通过生命周期回调中处理Future的方式来传递数据；或者像`WillPopScope`所做的一样，通过await等待得到Future的结果（这个控件就通过Future标志位阻断了pop的过程，从而能够实现首页按两次返回退出的功能）。
+
+- Flutter的常用网络请求框架是Dio，其用法搭配Dart的异步机制可以说相当简单，基本就是通过get、post等方法， 获得相应的Response，然后对其进行解析即可，大多数请求语句可能就一行代码。Dio的一大亮点是提供了并发请求统一处理的方法和可以锁定请求队列完成前置任务的Interceptor Lock设计。其扁平化的编码方式得益于Dart语言本身的特性，但的确节省了当前网络请求框架需要与RxJava等框架结合使用的开发成本。
+
+- **Completer**是一个Future的生成器与控制器。很多时候Future的使用依赖于一个显示的对象构造，且只能预设其获得目标值之后的操作。但Completer允许通过complete、completeError等方法，来控制Future的设值与完成状态，从而起到与Java体系中回调相似的作用，不过其功能实现基于Future的监听机制。
+
+  >这里关于Future需要详细说明一下：
+  >
+  >Future的各种构造入参都是FutureOr\<T\>，其声明了一个Future\<T\>或一个T类型的参数，这是一个综合类型，由编译器动态解释（语法糖之一）。
+  >
+  >当一个方法的返回值为Future时，这个方法的非Future返回值，若类型为T，则会被包装成Future\<T\>（语法糖之二）。
+  >
+  >Future任务的执行依靠isolate的事件队列循环进行调度，其中`microTask`(微任务)的执行优先级高于一般的`event`(事件)，可以通过Future的方法来构造这两种优先级不同的事件。
+  >
+  >Future的异步效果实际上是**“延迟执行任务”**的表现，一个Future任务也许会晚于当前方法的代码执行，但当几个Future任务在一个时段进行排队执行时，其执行效果永远是有序的，而明显区别于多线程工作。同时在Future任务执行时间较长时，会阻塞UI的交互。所以密集型计算任务，还是需要开启新的isolate来执行。
 
 ### Tips
 
