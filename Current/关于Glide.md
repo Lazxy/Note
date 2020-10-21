@@ -1,0 +1,33 @@
+##关于Glide
+
+###关于AppModule的初始化
+
+Glide的`@GlideModule`注解用于Glide的定制化配置，注解解释器在生成其包装引用文件后，会在Glide的`initializeGlide`方法中引用并调用实现的注册及配置方法，这个方法的调用则是在Glide使用时的`checkAndInitializeGlide`检查方法中。
+
+### 关于图片加载请求的执行
+
+图片加载从into开始，经过`request.begin()`，走到`Engine.load()`方法，这里执行了三级缓存的逻辑，包装了一个EngineJob对象decodeJob（很有迷惑性的名字），通过其内置的Executor线程池开始了加载任务。
+
+接下来的事情会在decodeJob的run方法中发生，在这里，正常情况下走入`runWrapped`方法，会根据当前的启动原因（初始化、获取源数据、解码或者缓存）来构造对应的`DataFetcherGenerator`对象，接下来实际的获取过程发生在Generator对象的逻辑中。
+
+负责远程网络获取资源的是`SourceGenerator`类，它会从DecodeJob构造时被注入的DecodeHelper中获取到对应的加载信息对象loadData（ModelLoader类型），通过这个对象的`Fetcher`成员启动加载数据过程。需要注意，这里的Fetcher成员是Glide定制化的一部分，取决于这里使用的网络框架，此处为**OkHttpStreamFetcher**。
+
+> Fetcher本身是ModelLoader的一部分，但其原始参数源自DecodeHelper的model和options，在构造时，MultiModelLoader会根据model的类型（Uri的类型，协议和schema）来选择构建不同的ModelLoader，在这里就是HttpUriLoader。它的工厂构造方法中走了MultiModelLoaderFactory的build方法，入参为GlideUrl.class和InputStream.class，build方法会根据这两个入参类型来选择对应的构造。这里的类型对照表来自MultiModelLoaderFactory的entries成员变量。
+>
+> 这个entries变量在Glide初始化的时候就被注入了三十多种预设类型对，该过程在Glide的构造方法中就已完成。但OkHttpUrlLoader在何时注入呢？答案是最开始的GlideModule的注册，这里通过Registry对象声明了上述类型对的对应工厂类，从而实现了对ModelLoader底层实现从HttpGlideUrlLoader到OkHttpUrlLoader的替换，于是Fetcher也就变成了OkHttpStreamFetcher。
+>
+> 不过上一段的最后一句话还是有些问题，实际上，在Registry视图去replace Loader的实现时，会发现其实这里的ModelLoader已经是OkHttpUrlLoader了，这是为什么呢？原因是Glide的okhttp3-integration这个aar包，本身自带了一个AndroidManifest的meta-data声明，Glide初始化时会根据这个meta-data找到相应的GlideModule类，而这个类（OkHttpGlideModule）中就包含了上述对ModelLoader的注册。这个未曾预料的注册实例可以通过重写我们的GlideModule的isManifestParsingEnabled方法返回false来解决。
+
+OkHttpStreamFetcher通过之前传过去的参数发起了网络请求，并通过回调方法将结果返回了ModelLoader，ModelLoader再将结果传给SourceGenerator，这里如果有数据缓存选项的话，会走DecodeJob的reschedule选项，通过Executor以`SWITCH_TO_RESOURCE_SERVICE`的原因再执行一次；如果没有，会走DecodeJob的onDataFetcherReady回调，然后以`DECODE_DATA`的原因再执行一次。在完成所有步骤得到对应的图片资源后，最后会走到EnginJob的`handleResultOnMainThread()`方法，然后通过层层回调最终把图片数据穿回给应用层的回调方法，之后释放所有持有的资源。
+
+###关于我们关心的图片加载请求取消的事情
+
+在这个整个过程中分别在任务的开始和结束处有可取消的选项，分别是是**RequestTracker的runRequest**方法中，会检查`isPause`标记位，以此来迎合页面的生命该周期；以及**EngineJob的handleResultOnMainThread**，会检查`isCancelled`标记位。
+
+其中，isPause的标记位由RequestManagr调用RequestTracker的`pauseRequestes`方法进行设置，同时这个方法会调用`request.clear()`把request的目标对象清除，并把请求存入延迟请求列表。这个行为是和页面的生命周期回调联系在一起的。
+
+对于isCancelled，其置值在`cancel`方法中改方法的调用链一直延伸到和isPause相同的`request.clear()`，在这条漫长的调用链底端，会涉及到OkHttp的请求取消流程。它的常规调用也一般和页面的生命周期回调联系在一起，当需要自己控制这个标记时，也可以通过Glide.into()返回的`Target`对象来获取request对象以进行clear。
+
+
+
+> 读Glide代码代码需要注意的一些点：Glide的代码调用流程本身比较长，并且有些入参的名字和参数列表本身不对应，接口名取得略有些奇怪，需要仔细地分别它们的类型。有些时候一些状态变量的变更会放在一些奇怪的方法里，所以每个小方法都要点进去看一眼。
