@@ -1,0 +1,28 @@
+## 从Launcher到应用
+
+- ~~Android 9.0里，startActivity并没有绕很大弯子，而是直接从Instrumentation跳到Activityanager的实现，然后通过Binder启动了其他进程~~。然后回到Java层是通过`EXECUTE_TRANSACTION`事件触发的，事件的触发点在Binder的`execTransact`方法。
+
+  > 这和Android O以及之前的版本都不同，之前的版本会通过ActivityManager的显式调用最后追溯到ActivityThread的某个具体方法来发起一个具体对应生命周期的事件。
+  >
+  > 修正：startctivity的弯子还是绕了的，ActivityManagerService还是全程参与了这个过程，不过是Instrumentation -> IActivityManager -> Binder -> ActivityManagerService 的跨进程过程，而ActivityManagerService在**系统进程**。
+
+- 而发出Message之后，TransactionExecutor先执行了各种Message附带的各种callback，然后让`ActivityLifecycleItem`自执行事件来触发Activity的生命周期回调——有意思的地方就在这里，ActivityLifecycleItem本身的具体实现就代表了各生命周期的状态和行为，相当于通过这一层对生命周期做了抽象封装，这样做的原因可能是为了对生命周期监听或者触发回调的逻辑可以不和ActivityThread完全耦合。
+
+- 在Pause、Stop等生命周期执行完操作之后，的确通过postExecute操作通知了ActivityManagerService这一步骤的结束，但从Debug的行为来看，进程间生命周期的调用并不是同步过程，可能在上一个Activity的onPause执行完之前，下一个Activity的onResume就已经开始了。（我在想什么呢，不同的进程当然也有不同的线程，并行很正常。）
+
+- **××以下是关于SingleTop失效的探索内容：××**
+
+- ~~根据现象猜测，singleTop失效的源头在于异步执行的Message已经存在于队列，之后的启动过程没有对其进行校验。如果一个Activity先行完成了它的启动，之后的Activity再试图重复启动，就会出现问题。~~这个问题的原因的确是因为一个不该添加的集合导致的，不过不过这个集合是ActivityStack的mHistoryTask->TaskRecord->mActivity。直接原因是**在ActivityManagerService的launchMode拦截条件（参见dontStart变量的赋值过程）下，要求顶部ActivityRecord的ProcessRecord对象，即`app`属性非空（理解为确保这个Activity已经启动）**，如果拦截通过，则会将ActivityRecord加进了ActivityStack，这个行为在系统进程内完成。而另一边应用进程会在上一个Activity onPause后realStartActivity，在这个过程中给才会顶部ActivityRecord初始化设置app。于是，问题就这么发生了：在用户进程-> startActivity->Binder和ActivityManagerService通信（launchActivity和pauseActivity）->onPause->Binder通知ActivityManager->realStartActivity的过程中，在接到pauseActivity的通知前，用户进程有空闲对AMS发起多个startActivity请求，在AMS成功收到pauseActivity任务执行完毕的通知或者500ms超时之前，AMS可以添加多条ActivityRecord记录。
+
+- 而SingleTask和SingleInstance会在上述拦截过程之前校验Task归属时通过ActivityRecord的`realActivity`校验是否存在重复的Activity，故不会出现上述情况。这个机制最后是否被触发的标志是`mAddingToTask`属性是否为true。
+
+- **××以下是关于Activity启动标志位的问题：××**
+
+- FLAG_ACTIVITY_NEW_TASK和FLAG_ACTIVITY_MULTIPLE_TASK一同使用时，才有新建一个Task的效果，且当应用内有多个Task时，即使杀掉其中一个Task，Launcher也会每次选择一个其他的Task来进行展示，除非所有Task都被关闭。
+
+- ACTION_IMAGE_CAPTURE需要CAMERA权限通过的注释写在这个常量的注释里，具体到代码拦截在startActivity过程中的ActivityStackSupervisor的`checkStartAnyActivityPermission`方法里，包括两个拍照相关权限和一个发起通话权限。
+
+- LaunchActivityItem居然是夹在ResumeActivityItem里过来的。
+
+- 用非Activity的Context启动Activity时会缺少taskId，在Instrumentation会被拦掉，但在Android 7/8/8.1不会有这个拦截。拦截的理由是可能会出现BUG，但是暂时也并没有发现为什么会有BUG。
+

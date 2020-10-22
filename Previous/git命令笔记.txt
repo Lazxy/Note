@@ -27,3 +27,4 @@ Tips：
 /*以上所有修改远程代码的操作都需要commit并push后才生效*/
 /*只要在.ssh文件夹下放置两个SSH公钥文件，就可以通过SSH权限校验。*/
 /*在Git Bash中，带括号的文件名可能需要转义字符转义*/
+/*可以通过git config --global core.quotepath false 把以数字形式展示的中文文件名改成中文展示*/
