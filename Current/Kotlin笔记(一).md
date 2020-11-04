@@ -539,11 +539,11 @@ ___
        //...
      }
    }
-
+   
    var n: NestedClass = OuterClass.NestedClass() //直接声明，不需要构造新的外部类
    ```
 
-   根据前面讲过的可见性规则，嵌套类的`private`成员也不能被外部类访问到，同时其不能访问外部类的`private`和`protected`变量，即**嵌套类与其外部类没有任何从属关系，是两个同等级的类。**该种形式的类存在大概仅仅是为了使结构清晰？ 
+   根据前面讲过的可见性规则，嵌套类的`private`成员也不能被外部类访问到，同时其不能访问外部类的`private`和`protected`变量，即**嵌套类与其外部类没有任何从属关系，是两个同等级的类。**这里的用法基本相当于Java的静态内部类。 
 
 4. Inner Classes
 
@@ -556,7 +556,7 @@ ___
        //...
      }
    }
-
+   
    var n = OuterClass().InnerClass() //需要通过先构造外部类来构造内部类对象
    ```
 
@@ -567,15 +567,17 @@ ___
    v.setOnClickListener(object: View.OnClickListener(){
      //...
    })
-
+   
    //用lambda表达式声明
    v.setOnClickListener({v ->  println("A click")}) 
+   
+   //用这两种方式声明的匿名内部类除了写法上的区别，其实现原理也有所不同。
+   //用object形式声明的匿名内部类和内部类基本是等价的，属于一个独立的类对象，其this指向内部类自身对象，所以在引用外部类时需要用this@[类名]的方式来进行指名；
+   //而lambda表达式声明的匿名内部类更像内联进当前类的代码，this指向引用类。
    ```
    这里的匿名内部类同Java一样都能访问到所在范围的局部变量，但不需要将局部变量设置为final，可进行更改。
 
    >Java中匿名内部类中的局部变量需要设为final的原因是：匿名内部类中用到的局部变量值实际为调用的局部变量的复制体，其生命周期与原变量不一致，故为了保持复制体和局部变量值的一致性，将其设为final，保证基础数据类型的值相同，或两个引用一直指向同一个对象。
-
-   ​
 
 5. Emum Classes
 
@@ -587,23 +589,23 @@ ___
            GREEN(0x00FF00),
            BLUE(0x0000FF)
    }
-
+   
    enum class ProtocolState {
        WAITING {
            override fun signal() = TALKING //创建一个枚举类的匿名子类并重写其方法
        },
-
+   
        TALKING {
            override fun signal() = WAITING
        }; //注意不同枚举对象间间隔用","  枚举变量与类成员间用";"间隔
-
+   
        abstract fun signal(): ProtocolState
    }
-
+   
    //假定枚举类名称为EnumClass
    EnumClass.valueOf(value: String): EnumClass //取对应名称的枚举变量 
    EnumClass.values(): Array<EnumClass> //取枚举类枚举对象构成的数组
-
+   
    inline fun <reified T : Enum<T>> printAllValues() {
        print(enumValues<T>().joinToString { it.name }) //通过enumValues方法取得相应枚举类名T的枚举对象数组
    }
