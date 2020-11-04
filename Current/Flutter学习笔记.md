@@ -1,4 +1,10 @@
-### Flutter学习笔记
+---
+title: Flutter学习笔记
+date: 2020-03-12 17:34:02
+tags: 笔记
+---
+
+> 当时为了赶时髦，同时也闲得无聊，于是学了一阵Flutter，最后想要实践个项目，然而无疾而终。画页面真的好难！！
 
 #### 1. Widget
 
@@ -11,6 +17,8 @@ Widget的手势设置和设置布局属性类似，需要在外层裹上一层Ge
 StatefulWidget与StatelessWidget的继承用于声明一个控件状态可变/不可变，前者的实际控件声明都写在其State实现类中。
 
 Widget的嵌套写法中，子Widget可以作为参数传入父Widget的构造方法， 且其命名与父Widget中一致，这样其位置也是固定的。
+
+<!--more-->
 
 ---
 

@@ -337,6 +337,23 @@ public static void setFontSize(TextView tv, float size){
 
 > 另外需要一提的是，反向绑定方法调用的时机需要自己通过属性监听来实现，DataBinding只会在Binding创建时调用一次上面的绑定事件响应方法，可以在这里面添加属性变更监听，监听动作为调用反向绑定方法。
 
+另外，不要对include布局使用**基本类型**的对象属性作为双向绑定值，因为include布局的Binding实现类没办法通过这个独立属性追溯到其引用布局的对象类，在反向绑定时就会将include布局的Binding对象作为这个属性的宿主。如：
+
+```xml
+<!--invokr_layout.xml-->
+<include
+    <!-- ... <!--
+    layout="@layout/include_layout"
+    app:content="@{model.value}" 
+/>
+<!--假设此时value是一个String类型 content是include_layout中一个被双向绑定的属性
+理想状况下,content应该在被改动时自动调用model.setValue(String)方法
+但双向绑定的行为实际发生在IncludeLayoutBinding中，此时content对其来说只是一个String，所以在双向绑定生效时会改变content在其内保存的副本，即getContent()方法得到的值
+-->
+```
+
+此时的处理方式应为传给include布局一个**可引用对象**，如ObservableField或者一个自定义的JavaBean，以此能在上层对数据进行操作。
+
 #### IDE支持
 
 AndroidStudio中允许用`default`字段来设定数据源不存在时的默认值，如：
