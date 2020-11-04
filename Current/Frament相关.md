@@ -1,6 +1,10 @@
-### Fragment相关
+---
+title: Fragment相关
+date: 2018-07-09 14:14:02
+tags: 笔记
+---
 
-> ​	项目中碰到了Fragment切换造成整个界面UI都混乱的情况，于是决定研究下Fragment的生命周期里具体都对UI做了什么，希望找到突破点。
+> ​	项目中碰到了Fragment切换造成整个界面UI都混乱的情况，于是决定研究下Fragment的生命周期里具体都对UI做了什么，希望找到突破点。~~当然最后并没有折腾到最后~~
 
 #### 从add()开始讲起
 
@@ -11,6 +15,8 @@ getSupportFragmentManager().beginTransaction().add(container.getId(), fragment).
 ```
 
 首先，第一个方法，getSupportFragmentManager()，其获得的对象是一个FragmentManager抽象类的子类(也写在这个类的文件里，是一个final内部类)，即**FragmentManagerImpl**，这里要注意的是，**android.app**包里的Fragment调用getFragmentManager()也能得到一个FragmentManagerImpl对象，然而这个对象所属的类也在android.app包里，而不是上面的**v4**包，两者方法上有些差异，不能混为一谈。
+
+<!--more-->
 
 接着就是beginTransaction()，这个方法就就很简单，构造了一个**BackStackRecord**对象，它是**FragmentTransaction**的唯一官方实现子类，里面声明了各种对Fragment的操作方法，并定义了对Fragment栈存储所需要的一些数据结构。
 

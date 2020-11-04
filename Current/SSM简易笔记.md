@@ -1,6 +1,10 @@
-### SSM简易笔记
+---
+title: SSM简易笔记
+date: 2018-07-09 14:14:02
+tags: 笔记
+---
 
-> 2018年上半年接手Portal服务端的开发任务，使命艰巨啊，由此先从简单的入手，走一遍SSM基础教程。内容来自[How2J](http://how2j.cn/k/)。
+> 2018年上半年接手Portal服务端的开发任务，使命艰巨啊，由此先从简单的入手，走一遍SSM基础教程。内容来自[How2J](http://how2j.cn/k/)。~~惊了！我怎么什么都学过，为什么一点都记不起来了！~~
 
 #### Spring部分
 
@@ -9,6 +13,8 @@
 #### 一、IOC/DI
 
 IOC即控制反转，想想Dagger就好，这里最简单的实现是在**applicationContext.xml**文件 *(在src目录下)*的bean节点里声明类以及需要注入的属性，其样式如下：
+
+<!--more-->
 
 ```xml
 <beans xmlns="http://www.springframework.org/schema/beans"
