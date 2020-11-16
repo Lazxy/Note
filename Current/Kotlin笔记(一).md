@@ -1,10 +1,16 @@
+---
+title: Kotlin笔记（一）
+date: 2017-07-10 20:23:06
+tags: 笔记
+---
 
-
-### Kotlin笔记
+> ​	Kotlin成Android开发的一级语言后生吃了不少关于这门语言如何好用的安利，于是抱着“用不用得上先学了再说”的想法把它加进了学习计划。然而现在潮流刚起，各种教程参差不齐，怎么学呢？当然是看文档啊！所以在残存的英（谷）语（歌）底（翻）子（译）的帮助下，就有了这么一篇精简版的文档翻译版笔记。
 
 #### 1.Package：
 
 同Java基本一致，不过新增了 as关键字为包取别名用于对包名进行简化。
+
+<!--more-->
 
 ```
 示例：
@@ -93,7 +99,7 @@ ___
    Kotlin中`if`保留了原来的用法，即作为判断语句，在其后的代码块或者下一行中写相应的表达式；但其增加了一种新的用法，或者说简化了其用法，即——将if语句作为赋值式，其示例如下：
 
    ```kotlin
-   var a: Boolean = if(str == "Hello world") "Hello" else "world"
+   var a: String = if(str == "Hello world") "Hello" else "world"
    //注意，当if为赋值语句时，必须要有else，否则编译器会报错。
    val a = if(str !== "Hello"){
            println("It's true")
@@ -221,13 +227,13 @@ fun foo() {
 **Kotlin类的表示**同样是`class`，不同点主要在于其构造方法的表示。在这里一个class拥有有一个主构造函数和若干个副构造函数，并且主构造函数的参数列表是直接写在类的声明中的，其表示方法如下：
 
 ```kotlin
-1.无参无内容的类
+//1.无参无内容的类
 	class Test  //直接省略了"{}"
-2.无有参构造的类
+//2.无有参构造的类
 	class Test constructor(){ //这里的constructor可省略，除非这个构造是有指定范围的，默认范围为public，下同；由于无参，这里的"()"也可以省略
       //..
 	}
-3.以有参构造作为主构造函数的类
+//3.以有参构造作为主构造函数的类
 	class Test public constructor(val name: String,val age: Int){//这里的val可以省略，参数列表内默认为常数
 	  var mName = name //可以作为成员变量的初始化元素,同时也可以直接将构造参数拿来使用
       init{
@@ -512,7 +518,7 @@ ___
 
    ```kotlin
    var d: DataClass = DataClass()
-   var(value1,value2) = d //一个匿名对象，只暴露出了两个成员变量，而变量值来自d的component1、component2方法的返回,这种行为也称解构
+   var(value1,value2) = d //一个匿名对象，相当于构造出两个临时变量，而变量值来自d的component1、component2方法的返回,这种行为也称解构，和JS的行为很像。
    println(value1 + "$value2")
    ```
 
@@ -617,7 +623,7 @@ ___
 
 #### 10.Generics
 
-Kotlin中的泛型和Java的使用方式基本一致，但Kotlin中没有通配符`?`的存在，于是泛型间类型兼容就成了问题。Java中的两种通配符使用方式分别为`? extends Object` 和`? super Object`，各自代表了_producer(生产者)_和_consumer(消费者)_的角色——前者只能对集合（架设泛型是用于集合）内的数据进行操作，而不能对其进行添加或插入；后者只能对集合内的数据进行添加和插入，而不能利用其进行操作。基于Java的通配符模型，Kotlin分别为生产者泛型和消费者泛型设定了两个修饰符`out`和`in`，其用法如下：
+Kotlin中的泛型和Java的使用方式基本一致，但Kotlin中没有通配符`?`的存在，于是泛型间类型兼容就成了问题。Java中的两种通配符使用方式分别为`? extends Object` 和`? super Object`，各自代表了_producer(生产者)_和_consumer(消费者)_的角色——前者只能对集合（假设泛型是用于集合）内的数据进行操作，而不能对其进行添加或插入（因为不确定子类具体类型，只能调用父类公有方法）；后者只能对集合内的数据进行添加和插入，而不能利用其进行操作（因为不确定实现对象的功能，所以只能进行增删对象）。基于Java的通配符模型，Kotlin分别为生产者泛型和消费者泛型设定了两个修饰符`out`和`in`，其用法如下：
 
 ```kotlin
 //producer
