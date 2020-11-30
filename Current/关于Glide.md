@@ -31,3 +31,9 @@ OkHttpStreamFetcher通过之前传过去的参数发起了网络请求，并通�
 
 
 > 读Glide代码代码需要注意的一些点：Glide的代码调用流程本身比较长，并且有些入参的名字和参数列表本身不对应，接口名取得略有些奇怪，需要仔细地分别它们的类型。有些时候一些状态变量的变更会放在一些奇怪的方法里，所以每个小方法都要点进去看一眼。
+
+### 关于Glide的缓存
+
+Glide的硬盘缓存最终还是用到了DiskLruCache，其遵循的缓存规则是缓存满之后移除最不常访问的缓存内容（Lru）。
+
+缓存器的来源链条是GlideBuilder-Engine-DecodeJob-DecodeHelper，默认的DiskCacheProvider是`LazyDiskCacheProvider`，默认的DiskCache.Factory是`InternalCacheDiskCacheFactory`，在这里可以看到，其默认缓存大小是250M。

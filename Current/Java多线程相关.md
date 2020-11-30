@@ -19,13 +19,13 @@
    ```java
    private static Object objectA = new Object();
        private static Object objectB = new Object();
-
+   
        public static void main(String[] args) {
            new Thread(new TaskA()).start();
            new Thread(new TaskB()).start();
-
+   
        }
-
+   
        private static class TaskA implements Runnable {
            @Override
            public void run() {
@@ -39,7 +39,7 @@
                }
            }
        }
-
+   
        private static class TaskB implements Runnable {
            @Override
            public void run() {
@@ -62,6 +62,8 @@
 9. 当线程共享数据为静态变量时，静态同步函数的锁为`Class`对象。该对象先于本类的实例对象出现，是在static变量进内存时产生的**字节码文件**。而普通同步函数的锁是本类的实例对象，即**this**。
 
 10. `volateil`修饰符可以实现线程共享变量的可见性统一——即在每个线程调用该变量时都**必须访问内存得到它的最新值**，然后拷贝为线程的变量副本，在完成关于变量的操作后立刻将副本的值修改入内存（需要是原子性操作，类似自增之类的多步操作不能起效），以此让每个线程取得的变量值都是同一个。除此之外`volatile`能够保证被其修饰变量所在的语句一定会按照代码顺序执行（将前后分为两个部分，两个部分内的顺序不保证，但代码一定会在这两个部分之间执行）。[参考文章](http://www.cnblogs.com/dolphin0520/p/3920373.html) 
+
+11. 公平锁和非公平锁指的是等待锁的线程是以请求锁的顺序排队等待的还是随机抢占式获取锁的，synchronized是非公平锁，而ReetrantLock可以通过初始构造参数来设置是否使用公平锁。
 
 ####单例模式
 
