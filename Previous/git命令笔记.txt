@@ -23,7 +23,8 @@
 git rm -r [文件名] //删除所选文件
 
 Tips：
-/*第一次关联本地库与远程代码时需要执行 git remote add origin [代码库地址]*/
+/*第一次关联本地库与远程代码时需要执行 git remote add origin [代码库地址]
+如果需要用AS的update功能，则需要先git fetch origin master 然后 git branch --set-upstream-to=origin/master master*/
 /*以上所有修改远程代码的操作都需要commit并push后才生效*/
 /*只要在.ssh文件夹下放置两个SSH公钥文件，就可以通过SSH权限校验。*/
 /*在Git Bash中，带括号的文件名可能需要转义字符转义*/
