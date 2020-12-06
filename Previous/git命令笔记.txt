@@ -22,6 +22,11 @@
 输入 git pull origin（分支名）//可以同步远程版本库的代码并且与本地分支合并
 git rm -r [文件名] //删除所选文件
 
+各种回滚逻辑：
+1. 回滚本地修改未add的文件 git checkout -- [文件名]
+2. 回滚本地已提交的分支 git reset [本次提交之前某个提交的id] //如果使用这个命令，再次提交后之前的提交记录会被清除
+3. 回滚到本地已提交的分支 git revert [之前的某个提交id] //如果使用这个命令后再commit，会新增一条新的提交记录，相当于再提交一次旧文件，而不会删除之前的提交记录
+
 Tips：
 /*第一次关联本地库与远程代码时需要执行 git remote add origin [代码库地址]
 如果需要用AS的update功能，则需要先git fetch origin master 然后 git branch --set-upstream-to=origin/master master*/
