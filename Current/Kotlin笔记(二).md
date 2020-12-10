@@ -236,13 +236,40 @@ GlobalScope.lunch(Dispatchers.Main){
 }
 ```
 
-
-
 上述代码中，launch方法是一个构造器方法，相当于开启一个协程，并返回一个`Job`对象（它的API形式相当于Java的Thread，可以开始或终止协程）。该方法的`start`参数默认为**CoroutineStart.DEFAULT**,表示立即开始执行协程（这里的立即执行指执行代码抢到CPU时间片的时候），如果这个参数是**LAZY**，则该协程只会被声明，需要通过Job对象的`start`或者`join`方法来开启——前者和DEFAULT一样，开始协程，并继续执行下面的代码，后者则是阻塞住当前线程，直到协程体内的任务全部完成。
 
 >start参数还有**ATOMIC**和**UNDISPATCHED**，前者会忽略Job的cancelling标记位，一直执行到第一个挂起点才会停止；后者则直接忽略线程调度，直接在当前线程立即执行协程体。
 
-Dispatchers.Main作为launch的构造器参数，表示下面的协程体运行在哪个线程，如果不填这个参数，默认的调度器会让它运行在一个子线程内；协程体中的`suspend`和`await`是断点方法，代码运行至这两个方法时会中断运行等待其内容运行结束后再返回；`async`是另一个协程开启构造器，表示异步地开启一个协程，不阻塞当前代码运行，其结果返回会终止await的中断状态。
+Dispatchers.Main作为launch的构造器参数，实际是一种特殊的协程上下文（**CoroutineContext**），其表示了下面的协程体运行在哪个线程，如果不填这个参数，默认的调度器会让它运行在一个子线程内（由线程池管理）。除了**Main**和**Default**之外，JVM支持的默认调度器还有**Unconfined**和**IO**，前者表示直接在当前线程开启协程，后者也是调度到线程池的线程中去。
+
+> 协程上下文从本质上来讲实际是一个Key-Element集合，故而可以有任意组合的特性。除了这里说到的线程调度器，上下文也包括异常捕获等各种对协程流程的监听。
+
+协程体中的`suspend`和`await`是断点方法，代码运行至这两个方法时会中断运行等待其内容运行结束后再返回；`async`是另一个协程开启构造器，表示异步地开启一个协程，不阻塞当前代码运行，其结果返回会终止await的中断状态。
+
+如果需要封装一个协程，可以采用`suspendCoroutine`方法捕获一个协程结果，回调到阻塞的异步协程中去，用法如下：
+
+```kotlin
+fun invoke(){
+    GlobalScope.launch(Dispatch.Main) {
+        progress.show()
+        val result = async{
+            doSomething()
+        }
+        //这里会等待异步任务结束后切回主线程
+        if(result.await){
+            //do when success
+        }else{
+            //do when failed
+        }
+    }
+}
+private suspend fun doSomething() = suspendCoroutine<Boolean> {                                   
+    GlobalScope.launch(Dispatchers.IO) {
+        //回调回耗时任务的结果
+    	it.resume(somethingComplecate())
+    }                        
+}                                                                                       
+```
 
 
 
