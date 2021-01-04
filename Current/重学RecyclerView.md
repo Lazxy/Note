@@ -6,7 +6,7 @@
 2. RecyclerView的复用机制
 3. RecyclerView事件分发
 
-### 1.RecyclerView的布局和动画
+#### 1. 从RecyclerView的布局流程看起
 
 要了解RecyclerView的布局，依然和其他控件的布局一样，从onMeasure开始：
 
@@ -443,11 +443,11 @@ void layoutChunk(RecyclerView.Recycler recycler, RecyclerView.State state,
     }
 ```
 
-#### 布局小结与细节：
+#### 2. 布局小结与细节&复用和缓存逻辑
 
 - **布局的过程中总会顺序调用dispatchLayoutStep1、2、3，三者的作用分别是：预布局，测量子项高度，确定布局子项位置变化和动画选择；根据第一步的结果进行布局动作；重置各种标志位，处理各子项的动画信息，并执行各动画回调。**
 
-- Recycler的一级缓存是**mCacheViews**，其大小取决于`mViewCacheMax`参数（常规是2+N，N取决于LayoutManager的mPrefetchMaxCountObserved参数），当一个多余子项移出页面时，就会进入mCachedViews里，以便快速地重用（这个过程是预测性质的，根据一个deadlineNs来进行预判断应该缓存哪个ViewHolder，**Recycler**掌握着这个神奇的过程，包括布局时的计时）；第二级缓存就是**mRecyclerPool**，为RecycledViewPool类型，里面保存着一个SparseArray，以类型区分的形式保存ViewHolder数组，每种类型数组的上限来自ScrapData的mMaxScrap值，默认是5。当一级缓存满时，就会将ViewHolder放入二级缓存。
+- Recycler的一级缓存是**mCacheViews**，其大小取决于`mViewCacheMax`参数（常规是2+N，N取决于LayoutManager的mPrefetchMaxCountObserved参数），当一个多余子项移出页面时，就会进入mCachedViews里，以便快速地重用（这个过程是预测性质的，根据当前位置和deadlineNs来进行预判断是否需要缓存即将出现或者消失的ViewHolder，**Recycler**和**GapWorker**共同掌握着这个过程）；第二级缓存就是**mRecyclerPool**，为RecycledViewPool类型，里面保存着一个SparseArray，以类型区分的形式保存ViewHolder数组，每种类型数组的上限来自ScrapData的mMaxScrap值，默认是5。当一级缓存满时，就会将ViewHolder放入二级缓存。
 
   > 理论上RecyclerView只需要一屏最大子项数量+2（即将消失和即将出现的子项）个ViewHolder就能完成整套循环（和ViewPager一样），但也许是列表的滚动速率更快，内容迭代更频繁的原因，这里设置两级冗余的缓存，以满足**少创建（二级缓存）和修改（一级缓存）View**的需求。
   >
@@ -459,11 +459,13 @@ void layoutChunk(RecyclerView.Recycler recycler, RecyclerView.State state,
 
 - 增减子项会造成ViewHolder的position偏移（AdapterHelper在step1中完成），可能造成缺少一项屏外的ViewHolder（中间增加一项的情况），或者屏内某个位置的ViewHolder找不到对应项（中间减少一项，此时会尝试从缓存中获取），这些额外的项会在layoutChunk中被加入RecyclerView，以完成动画的展示。
 
-- 每次走onCreateViewHolder时会记录下这个类型ViewHolder构造的时间，来计算构造平均值，这个平均值的作用是用来估算当页面变化时，是否有足够的时间构造一个ViewHolder（但是在布局中需要构造ViewHolder时，deadline相当于是不存在的，仅在GapWorker的任务中会用到这个逻辑，但这是干什么的呢？）。RecycledViewPool用ScrapData来保存不同类型ViewHolder的信息，包括其缓存上限、平均构造时间和平均绑定时间。
+- 每次走onCreateViewHolder/onBindViewHolder时会记录下这个类型ViewHolder构造/绑定的时间，来计算平均值，这个平均值的作用是用来估算当页面变化时，是否有足够的时间构造/绑定一个ViewHolder（但是在布局中需要构造ViewHolder时，deadline相当于是不存在的，仅在GapWorker的任务中会用到这个逻辑，如果GapWorker发现在下一帧到来前没有办法完成这个过程，且预判任务是非即时的，就会不进行绑定/构造过程，而留给下一帧）。RecycledViewPool用ScrapData来保存不同类型ViewHolder的信息，包括其缓存上限、平均构造时间和平均绑定时间。
 
 - 需要注意的各种类：**ChildHelper**（管理子项的数量、添加/移除子项相关的操作）、**AdapterHelper**（管理子项在Adapter中的位置、各种变更指令的解析）、**Recycler**（负责子项的循环使用、缓存管理、及ViewHolder本身的构造与绑定调用）。
 
-#### RecyclerView的动画
+- **GapWorker**是一个在RecyclerView被手势触发滑动时触发的一个Runnable。在最开始，它会根据滚动方向收集当前最前/后一项子项的上/下一项位置和其距离RecyclerView边界的距离，用这些参数构造出一个Task对象，然后根据这个Task对象，决定是否对该位置上的ViewHolder进行提前缓存（先尝试一级缓存，然后是二级缓存），在这个过程中也同样可能触发ViewHolder的构造和绑定。
+
+#### 3. RecyclerView的动画
 
 - RecyclerView的子项动画配置来自ItemAnimator
 - `animateMove`的默认实现是通过预设置translate，再执行平移动画将其拖到应在的位置来实现的。
