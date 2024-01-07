@@ -48,3 +48,9 @@
 - flow中调用cancel可以进行流的中断，在中断后执行流会抛出异常。不过在某些预设的流方法中（比如IntRange的asFlow），不会检查中断标记位，中断可能无效。
 
 - SharedFlow和StateFlow是热流，它们不用依靠collect进行每次流的启动（或者根据启动模式，只要启动一次即可）
+
+
+
+
+
+- Flow 本身是同步非阻塞的，不允许异步 emit，如果需要进行异步操作，要用 `ChannelFlow`
